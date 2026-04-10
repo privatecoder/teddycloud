@@ -36,7 +36,7 @@ req_cbr_t getCloudOtaCbr(HttpConnection *connection, const char_t *uri, const ch
     return cbr;
 }
 
-void cbrCloudOtaHeader(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
+error_t cbrCloudOtaHeader(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     HttpClientContext *httpClientContext = (HttpClientContext *)cloud_ctx;
@@ -178,6 +178,7 @@ void cbrCloudOtaHeader(void *src_ctx, HttpClientContext *cloud_ctx, const char *
     }
 
     ctx->status = PROX_STATUS_HEAD;
+    return NO_ERROR;
 }
 error_t cbrCloudOtaBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
@@ -243,16 +244,17 @@ req_cbr_t getCloudCbr(HttpConnection *connection, const char_t *uri, const char_
 
     return cbr;
 }
-void cbrCloudResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ctx)
+error_t cbrCloudResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ctx)
 {
-    cbrGenericResponsePassthrough(src_ctx, cloud_ctx);
+    return cbrGenericResponsePassthrough(src_ctx, cloud_ctx);
 }
 
-void cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
+error_t cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     char line[256];
     bool passthrough = true;
+    error_t send_err = NO_ERROR;
 
     if (ctx->status != PROX_STATUS_HEAD) // Only once
     {
@@ -262,8 +264,12 @@ void cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, cons
             if (allowOrigin != NULL && osStrlen(allowOrigin) > 0)
             {
                 osSprintf(line, "Access-Control-Allow-Origin: %s\r\n", allowOrigin);
-                httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
-                line[0] = '\0';
+                send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+                if (send_err)
+                {
+                    ctx->status = PROX_STATUS_HEAD;
+                    return send_err;
+                }
             }
         }
     }
@@ -307,11 +313,12 @@ void cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, cons
 
         if (send_line)
         {
-            httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+            send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
         }
     }
 
     ctx->status = PROX_STATUS_HEAD;
+    return send_err;
 }
 
 bool fillCbrBodyCache(cbr_ctx_t *ctx, HttpClientContext *httpClientContext, const char *payload, size_t length)
@@ -1258,7 +1265,7 @@ req_cbr_t getGenericCbr(HttpConnection *connection, const char_t *uri, const cha
     return cbr;
 }
 
-void cbrGenericResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ctx)
+error_t cbrGenericResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ctx)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     char line[128];
@@ -1267,15 +1274,21 @@ void cbrGenericResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ctx)
     const char *statusText = httpStatusCodeText(cloud_ctx->statusCode);
 
     osSprintf(line, "HTTP/%d.%d %u %s\r\n", MSB(cloud_ctx->version), LSB(cloud_ctx->version), cloud_ctx->statusCode, statusText);
-    httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+    error_t send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
     ctx->status = PROX_STATUS_CONN;
+    if (send_err)
+    {
+        TRACE_WARNING(">> response line send failed: %s\r\n", error2text(send_err));
+    }
+    return send_err;
 }
 
-void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
+error_t cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     char line[2048];
     bool send_line = true;
+    error_t send_err = NO_ERROR;
 
     if (ctx->status != PROX_STATUS_HEAD) // Only once
     {
@@ -1285,7 +1298,12 @@ void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, co
             if (allowOrigin != NULL && osStrlen(allowOrigin) > 0)
             {
                 osSprintf(line, "Access-Control-Allow-Origin: %s\r\n", allowOrigin);
-                httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+                send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+                if (send_err)
+                {
+                    ctx->status = PROX_STATUS_HEAD;
+                    return send_err;
+                }
             }
         }
     }
@@ -1310,9 +1328,10 @@ void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, co
 
     if (send_line)
     {
-        httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+        send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
     }
     ctx->status = PROX_STATUS_HEAD;
+    return send_err;
 }
 
 error_t cbrGenericBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)

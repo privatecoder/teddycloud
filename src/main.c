@@ -198,12 +198,13 @@ void tls_init(void)
     }
 }
 
-void cbr_header(void *ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
+error_t cbr_header(void *ctx, HttpClientContext *cloud_ctx, const char *header, const char *value)
 {
     if (header)
     {
         printf("%s:%s\n", header, value);
     }
+    return NO_ERROR;
 }
 
 void set_settings(const char *option)

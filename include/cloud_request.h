@@ -10,8 +10,8 @@ typedef struct req_cbr_t req_cbr_t;
 struct req_cbr_t
 {
     void *ctx;
-    void (*response)(void *ctx, HttpClientContext *cloud_ctx);
-    void (*header)(void *ctx, HttpClientContext *cloud_ctx, const char *header, const char *value);
+    error_t (*response)(void *ctx, HttpClientContext *cloud_ctx);
+    error_t (*header)(void *ctx, HttpClientContext *cloud_ctx, const char *header, const char *value);
     error_t (*body)(void *ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error);
     void (*disconnect)(void *ctx, HttpClientContext *cloud_ctx);
 };

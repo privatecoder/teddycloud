@@ -405,7 +405,13 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
 
             if (cbr && cbr->response)
             {
-                cbr->response(cbr->ctx, &httpClientContext);
+                error_t cbr_error = cbr->response(cbr->ctx, &httpClientContext);
+                if (cbr_error)
+                {
+                    TRACE_WARNING("Response callback detected downstream failure: %s\r\n", error2text(cbr_error));
+                    error = cbr_error;
+                    break;
+                }
             }
 
             char content_type[64];
@@ -420,7 +426,13 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
 
                 if (cbr && cbr->header)
                 {
-                    cbr->header(cbr->ctx, &httpClientContext, header_name, header_value);
+                    error_t cbr_error = cbr->header(cbr->ctx, &httpClientContext, header_name, header_value);
+                    if (cbr_error)
+                    {
+                        TRACE_WARNING("Header callback detected downstream failure: %s\r\n", error2text(cbr_error));
+                        error = cbr_error;
+                        break;
+                    }
                 }
 
                 if (ret != NO_ERROR)
@@ -434,6 +446,10 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
                     TRACE_DEBUG("Content-Type is %s\r\n", content_type);
                 }
             } while (1);
+
+            // Abort if response or header callback detected downstream failure
+            if (error)
+                break;
 
             // Header field found?
             if (strlen(content_type) == 0)
