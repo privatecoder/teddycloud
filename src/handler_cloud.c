@@ -672,7 +672,14 @@ error_t handleCloudContentExt(HttpConnection *connection, const char_t *uri, con
             error_t response_error = httpSendResponseStream(connection, streamFileRel, true);
             if (response_error)
             {
-                TRACE_ERROR(" >> file %s not available or not send, error=%s...\r\n", tonieInfo->contentPath, error2text(response_error));
+                if (response_error == ERROR_WRITE_FAILED || response_error == ERROR_NOT_CONNECTED)
+                {
+                    TRACE_WARNING(" >> client disconnected while streaming %s, error=%s\r\n", tonieInfo->contentPath, error2text(response_error));
+                }
+                else
+                {
+                    TRACE_ERROR(" >> failed to stream %s, error=%s\r\n", tonieInfo->contentPath, error2text(response_error));
+                }
             }
         }
         stream_ctx->active = false;
@@ -714,7 +721,14 @@ error_t handleCloudContentExt(HttpConnection *connection, const char_t *uri, con
             error_t response_error = httpSendResponseStream(connection, streamFileRel, true);
             if (response_error)
             {
-                TRACE_ERROR(" >> file %s not available or not send, error=%s...\r\n", tonieInfo->contentPath, error2text(response_error));
+                if (response_error == ERROR_WRITE_FAILED || response_error == ERROR_NOT_CONNECTED)
+                {
+                    TRACE_WARNING(" >> client disconnected while streaming TAP %s, error=%s\r\n", tonieInfo->contentPath, error2text(response_error));
+                }
+                else
+                {
+                    TRACE_ERROR(" >> failed to stream TAP %s, error=%s\r\n", tonieInfo->contentPath, error2text(response_error));
+                }
             }
         }
         else
@@ -745,7 +759,14 @@ error_t handleCloudContentExt(HttpConnection *connection, const char_t *uri, con
             error_t error = httpSendResponseStream(connection, &tonieInfo->contentPath[dataPathLen], (tonieInfo->json._source_type == CT_SOURCE_TAF_INCOMPLETE));
             if (error)
             {
-                TRACE_ERROR(" >> file %s not available or not send, error=%s...\r\n", tonieInfo->contentPath, error2text(error));
+                if (error == ERROR_WRITE_FAILED || error == ERROR_NOT_CONNECTED)
+                {
+                    TRACE_WARNING(" >> client disconnected while sending %s, error=%s\r\n", tonieInfo->contentPath, error2text(error));
+                }
+                else
+                {
+                    TRACE_ERROR(" >> failed to serve %s, error=%s\r\n", tonieInfo->contentPath, error2text(error));
+                }
             }
         }
         else
