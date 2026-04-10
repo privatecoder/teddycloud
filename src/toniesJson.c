@@ -61,7 +61,7 @@ void tonies_init()
     mutex_unlock(MUTEX_TONIES_JSON_CACHE);
 }
 
-void tonies_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+error_t tonies_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     HttpClientContext *httpClientContext = (HttpClientContext *)cloud_ctx;
@@ -81,18 +81,23 @@ void tonies_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const char
         if (error == ERROR_END_OF_STREAM)
         {
             fsCloseFile(ctx->file);
+            ctx->file = NULL;
         }
         else if (error != NO_ERROR)
         {
             fsCloseFile(ctx->file);
+            ctx->file = NULL;
             TRACE_ERROR("tonies.json download body error=%s\r\n", error2text(error));
         }
         if (errorWrite != NO_ERROR)
         {
             fsCloseFile(ctx->file);
-            TRACE_ERROR("tonies.json (%s) write error=%s\r\n", tonies_json_tmp_path, error2text(error));
+            ctx->file = NULL;
+            TRACE_ERROR("tonies.json (%s) write error=%s\r\n", tonies_json_tmp_path, error2text(errorWrite));
+            return errorWrite;
         }
     }
+    return NO_ERROR;
 }
 
 error_t tonies_update()
@@ -169,7 +174,7 @@ error_t toniesV2_update()
     return error;
 }
 
-void tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+error_t tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     HttpClientContext *httpClientContext = (HttpClientContext *)cloud_ctx;
@@ -193,18 +198,23 @@ void tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const 
         if (error == ERROR_END_OF_STREAM)
         {
             fsCloseFile(ctx->file);
+            ctx->file = NULL;
         }
         else if (error != NO_ERROR)
         {
             fsCloseFile(ctx->file);
+            ctx->file = NULL;
             TRACE_ERROR("tonieboxes.json download body error=%s\r\n", error2text(error));
         }
         if (errorWrite != NO_ERROR)
         {
             fsCloseFile(ctx->file);
-            TRACE_ERROR("tonieboxes.json (%s) write error=%s\r\n", tonies_json_tmp_path, error2text(error));
+            ctx->file = NULL;
+            TRACE_ERROR("tonieboxes.json (%s) write error=%s\r\n", tonies_json_tmp_path, error2text(errorWrite));
+            return errorWrite;
         }
     }
+    return NO_ERROR;
 }
 error_t tonieboxes_update()
 {
