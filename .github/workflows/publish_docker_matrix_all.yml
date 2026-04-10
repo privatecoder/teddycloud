@@ -1,99 +1,65 @@
-name: Docker Image Publish Matrix (All)
+name: Docker Publish
 
 on:
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      tcw_commit_hash:
-        type: string
-
   push:
     branches:
       - master
       - develop
+      - main
     tags:
-      - tc_nightly*
-      - tc_v*.*.*
-  pull_request:
-    branches:
-      - master
-      - develop
+      - "tc_v*"
+      - "tc_nightly*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY_IMAGE: ghcr.io/${{ github.repository_owner }}/teddycloud
 
 jobs:
-  test_commit_hash:
+  docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           submodules: recursive
-          ref: ${{ inputs.tcw_commit_hash }}
 
-      - name: Verify commit hash
-        if: ${{ inputs.tcw_commit_hash != '' }}
-        run: |
-          COMMIT_HASH=$(git rev-parse HEAD)
-          if [ "$COMMIT_HASH" != "${{ inputs.tcw_commit_hash }}" ]; then
-            echo "Error: Checked out commit hash ($COMMIT_HASH) does not match the expected hash (${{ inputs.tcw_commit_hash }})."
-            exit 1
-          else
-            echo "Commit hash verified: $COMMIT_HASH"
-          fi
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
 
-  ubuntu:
-    needs: test_commit_hash
-    uses: ./.github/workflows/publish_docker_matrix_base.yml
-    with:
-      system: "ubuntu"
-      dockerfile: "DockerfileUbuntu"
-      platforms: '["linux/amd64", "linux/arm/v7", "linux/arm64/v8", "linux/ppc64le", "linux/s390x"]'
-      primary_image: true
-      error_platforms: '["linux/s390x"]'
-      noasan_fallback_platforms: '["linux/arm/v7", "linux/arm64/v8", "linux/ppc64le"]'
-      tcw_commit_hash: ${{ inputs.tcw_commit_hash }}
-  debian:
-    needs: test_commit_hash
-    uses: ./.github/workflows/publish_docker_matrix_base.yml
-    with:
-      system: "debian"
-      dockerfile: "DockerfileDebian"
-      platforms: '["linux/amd64", "linux/arm/v7", "linux/arm64/v8", "linux/i386", "linux/ppc64le", "linux/s390x"]'
-      primary_image: false
-      error_platforms: '["linux/s390x"]'
-      noasan_fallback_platforms: '["linux/arm/v7", "linux/arm64/v8", "linux/ppc64le"]'
-      tcw_commit_hash: ${{ inputs.tcw_commit_hash }}
-  alpine:
-    needs: test_commit_hash
-    uses: ./.github/workflows/publish_docker_matrix_base.yml
-    with:
-      system: "alpine"
-      dockerfile: "DockerfileAlpine"
-      platforms: '["linux/amd64", "linux/arm/v6", "linux/arm/v7", "linux/arm64/v8", "linux/ppc64le", "linux/s390x", "linux/386"]'
-      primary_image: false
-      error_platforms: "[]"
-      noasan_fallback_platforms: "[]"
-      tcw_commit_hash: ${{ inputs.tcw_commit_hash }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-  ubuntuAsanTest:
-    needs: test_commit_hash
-    uses: ./.github/workflows/publish_docker_matrix_base.yml
-    with:
-      system: "ubuntuAsanTest"
-      dockerfile: "DockerfileUbuntu"
-      platforms: '["linux/arm/v7", "linux/arm64/v8", "linux/ppc64le"]'
-      primary_image: false
-      error_platforms: '["linux/arm/v7", "linux/arm64/v8", "linux/ppc64le"]'
-      noasan_fallback_platforms: "[]"
-      skip_empty_merge: true
-      tcw_commit_hash: ${{ inputs.tcw_commit_hash }}
-  debianAsanTest:
-    needs: test_commit_hash
-    uses: ./.github/workflows/publish_docker_matrix_base.yml
-    with:
-      system: "debianAsanTest"
-      dockerfile: "DockerfileDebian"
-      platforms: '["linux/arm/v7", "linux/arm64/v8", "linux/ppc64le"]'
-      primary_image: false
-      error_platforms: '["linux/arm/v7", "linux/arm64/v8", "linux/ppc64le"]'
-      noasan_fallback_platforms: "[]"
-      skip_empty_merge: true
-      tcw_commit_hash: ${{ inputs.tcw_commit_hash }}
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' || github.ref_name == 'master' }}
+            type=match,pattern=tc_v(.*),group=1
+
+      - name: Build and push amd64/arm64 image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: DockerfileUbuntu
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
