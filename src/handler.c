@@ -1293,19 +1293,20 @@ void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, co
     ctx->status = PROX_STATUS_HEAD;
 }
 
-void cbrGenericBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+error_t cbrGenericBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
-    static size_t total_sent = 0;
     error_t send_err;
 
     send_err = httpSend(ctx->connection, payload, length, HTTP_FLAG_DELAY);
     if (send_err)
     {
-        TRACE_ERROR(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", total_sent, length, error2text(send_err));
+        TRACE_WARNING(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", ctx->total_sent, length, error2text(send_err));
+        return send_err;
     }
-    total_sent += length;
+    ctx->total_sent += length;
     ctx->status = PROX_STATUS_BODY;
+    return NO_ERROR;
 }
 
 void cbrGenericServerDiscoPassthrough(void *src_ctx, HttpClientContext *cloud_ctx)
