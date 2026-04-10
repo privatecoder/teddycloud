@@ -106,7 +106,7 @@ bool web_parse_url(const char *url, char **hostname, uint16_t *port, char **uri,
     return true;
 }
 
-void web_dl_cbr(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+error_t web_dl_cbr(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     const char *filename = (const char *)ctx->customData;
@@ -121,7 +121,7 @@ void web_dl_cbr(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload
             if (!ctx->file)
             {
                 TRACE_ERROR("Failed to open file %s\r\n", filename);
-                return;
+                return ERROR_OPEN_FAILED;
             }
         }
         error_t errorWrite = NO_ERROR;
@@ -133,18 +133,23 @@ void web_dl_cbr(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload
         if (error == ERROR_END_OF_STREAM)
         {
             fsCloseFile(ctx->file);
+            ctx->file = NULL;
         }
         else if (error != NO_ERROR)
         {
             fsCloseFile(ctx->file);
+            ctx->file = NULL;
             TRACE_ERROR("body error=%s\r\n", error2text(error));
         }
         if (errorWrite != NO_ERROR)
         {
             fsCloseFile(ctx->file);
-            TRACE_ERROR("write error=%s\r\n", error2text(error));
+            ctx->file = NULL;
+            TRACE_ERROR("write error=%s\r\n", error2text(errorWrite));
+            return errorWrite;
         }
     }
+    return NO_ERROR;
 }
 
 error_t web_download(const char *url, const char *filename, uint32_t *statusCode)
