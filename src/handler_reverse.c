@@ -66,10 +66,9 @@ const reverse_target_t reverse_targets[] = {
     {"teddycloud_develop", "api.github.com", "/repos/toniebox-reverse-engineering/teddycloud/commits/develop", 443, true, false, true, 1, "application/json"},
     {NULL, NULL, NULL, 0, false, false, false, 0, NULL}};
 
-void cbrReverseBodyCache(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+error_t cbrReverseBodyCache(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
-    static size_t total_sent = 0;
     error_t send_err;
 
     if (cloud_ctx->statusCode == 200)
@@ -80,6 +79,9 @@ void cbrReverseBodyCache(void *src_ctx, HttpClientContext *cloud_ctx, const char
             if (write_err)
             {
                 TRACE_ERROR(">> fsWriteFile Error: %s\r\n", error2text(write_err));
+                fsCloseFile(ctx->file);
+                ctx->file = NULL;
+                return write_err;
             }
         }
     }
@@ -105,10 +107,12 @@ void cbrReverseBodyCache(void *src_ctx, HttpClientContext *cloud_ctx, const char
     send_err = httpSend(ctx->connection, payload, length, HTTP_FLAG_DELAY);
     if (send_err)
     {
-        TRACE_ERROR(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", total_sent, length, error2text(send_err));
+        TRACE_WARNING(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", ctx->total_sent, length, error2text(send_err));
+        return send_err;
     }
-    total_sent += length;
+    ctx->total_sent += length;
     ctx->status = PROX_STATUS_BODY;
+    return NO_ERROR;
 }
 
 error_t handleReverseGeneric(HttpConnection *connection, const char_t *uri, const char_t *queryString, client_ctx_t *client_ctx)
@@ -226,25 +230,31 @@ error_t handleReverseGeneric(HttpConnection *connection, const char_t *uri, cons
                         {
                             const char *mime = target->mime_type ? target->mime_type : "application/octet-stream";
                             httpPrepareHeader(connection, mime, fileSize);
-                            httpWriteHeader(connection);
-                            
-                            uint8_t buf[1024];
-                            size_t read_len;
-                            while(1)
+                            error_t serve_err = httpWriteHeader(connection);
+
+                            if (!serve_err)
                             {
-                                error_t err = fsReadFile(file, buf, sizeof(buf), &read_len);
-                                if (read_len > 0)
+                                uint8_t buf[1024];
+                                size_t read_len;
+                                while (!serve_err)
                                 {
-                                    httpWriteStream(connection, buf, read_len);
+                                    error_t read_err = fsReadFile(file, buf, sizeof(buf), &read_len);
+                                    if (read_len > 0)
+                                    {
+                                        serve_err = httpWriteStream(connection, buf, read_len);
+                                    }
+                                    if (read_err != NO_ERROR || read_len < sizeof(buf)) break;
                                 }
-                                if (err != NO_ERROR || read_len < sizeof(buf)) break;
+                                if (!serve_err)
+                                {
+                                    serve_err = httpCloseStream(connection);
+                                }
                             }
                             fsCloseFile(file);
-                            httpCloseStream(connection);
                             fsCloseDir(dir);
                             osFreeMem(cachePath);
                             osFreeMem(cachedUrl);
-                            return NO_ERROR;
+                            return serve_err;
                         }
                     }
                     else
