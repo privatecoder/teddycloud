@@ -184,19 +184,19 @@ cache_entry_t *cache_add(const char *url)
     {
         osFreeMem(extension);
         extension = strdup(&ext_pos[1]);
-
-        /* Remove optional HTTP GET parameters */
-        char *query_param = osStrchr(extension, '?');
-        if (query_param)
-        {
-            *query_param = '\0';
-        }
     }
 
     if (extension == NULL)
     {
         TRACE_ERROR("Failed to allocate extension string\r\n");
         return NULL;
+    }
+
+    /* Remove optional HTTP GET parameters from extension */
+    char *query_param = osStrchr(extension, '?');
+    if (query_param)
+    {
+        *query_param = '\0';
     }
 
     cache_entry_t *entry = osAllocMem(sizeof(cache_entry_t));
