@@ -311,11 +311,10 @@ bool fillCbrBodyCache(cbr_ctx_t *ctx, HttpClientContext *httpClientContext, cons
     return (ctx->bufferPos == ctx->bufferLen);
 }
 
-void cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     HttpClientContext *httpClientContext = (HttpClientContext *)cloud_ctx;
-    static size_t total_sent = 0;
     error_t send_err;
 
     // TRACE_INFO(">> cbrCloudBodyPassthrough: %lu received\r\n", length);
@@ -334,7 +333,7 @@ void cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const 
                 if (strlen(ctx->uri) < 28)
                 {
                     TRACE_ERROR(">> ctx->uri is too short\r\n");
-                    return;
+                    return ERROR_INVALID_LENGTH;
                 }
                 char *tmpPath = custom_asprintf("%s.tmp", ctx->tonieInfo->contentPath);
 
@@ -357,6 +356,9 @@ void cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const 
                 if (error)
                 {
                     TRACE_ERROR(">> fsWriteFile Error: %s\r\n", error2text(error));
+                    fsCloseFile(ctx->file);
+                    ctx->file = NULL;
+                    return error;
                 }
             }
             if (error == ERROR_END_OF_STREAM)
@@ -394,9 +396,15 @@ void cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const 
         send_err = httpSend(ctx->connection, payload, length, HTTP_FLAG_DELAY);
         if (send_err)
         {
-            TRACE_ERROR(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", total_sent, length, error2text(send_err));
+            TRACE_WARNING(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", ctx->total_sent, length, error2text(send_err));
+            if (ctx->file != NULL)
+            {
+                fsCloseFile(ctx->file);
+                ctx->file = NULL;
+            }
+            return send_err;
         }
-        total_sent += length;
+        ctx->total_sent += length;
         break;
     case V3_FRESHNESS_CHECK:
     {
@@ -501,9 +509,23 @@ void cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const 
 
             char line[128];
             osSnprintf(line, 128, "Content-Length: %" PRIuSIZE "\r\n\r\n", dataLen);
-            httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
-
-            httpSend(ctx->connection, response_json, dataLen, HTTP_FLAG_DELAY);
+            send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+            if (!send_err)
+            {
+                send_err = httpSend(ctx->connection, response_json, dataLen, HTTP_FLAG_DELAY);
+            }
+            if (send_err)
+            {
+                TRACE_WARNING(">> freshness response send failed: %s\r\n", error2text(send_err));
+                free(response_json);
+                cJSON_Delete(newRespJson);
+                if (ctx->buffer)
+                {
+                    osFreeMem(ctx->buffer);
+                    ctx->buffer = NULL;
+                }
+                return send_err;
+            }
 
             free(response_json);
             cJSON_Delete(newRespJson);
@@ -594,26 +616,37 @@ void cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const 
 
             char line[128];
             osSnprintf(line, 128, "Content-Length: %" PRIuSIZE "\r\n\r\n", ctx->bufferLen);
-            httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
-
-            httpSend(ctx->connection, ctx->buffer, ctx->bufferLen, HTTP_FLAG_DELAY);
+            send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+            if (!send_err)
+            {
+                send_err = httpSend(ctx->connection, ctx->buffer, ctx->bufferLen, HTTP_FLAG_DELAY);
+            }
+            if (send_err)
+            {
+                TRACE_WARNING(">> freshness response send failed: %s\r\n", error2text(send_err));
+                osFreeMem(ctx->buffer);
+                ctx->buffer = NULL;
+                return send_err;
+            }
             osFreeMem(ctx->buffer);
+            ctx->buffer = NULL;
         }
         else
         {
             send_err = httpSend(ctx->connection, payload, length, HTTP_FLAG_DELAY);
             if (send_err)
             {
-                TRACE_ERROR(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", total_sent, length, error2text(send_err));
+                TRACE_WARNING(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", ctx->total_sent, length, error2text(send_err));
+                return send_err;
             }
-            total_sent += length;
+            ctx->total_sent += length;
         }
         break;
     default:
-        cbrGenericBodyPassthrough(src_ctx, cloud_ctx, payload, length, error);
-        break;
+        return cbrGenericBodyPassthrough(src_ctx, cloud_ctx, payload, length, error);
     }
     ctx->status = PROX_STATUS_BODY;
+    return NO_ERROR;
 }
 
 void cbrCloudServerDiscoPassthrough(void *src_ctx, HttpClientContext *cloud_ctx)
