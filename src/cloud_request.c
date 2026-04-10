@@ -394,30 +394,61 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
                     // Disconnect HTTP client
                     httpClientDisconnect(&httpClientContext);
 
-                    char uri_base[256], uri_path[256], query_string[256];
-                    // TODO: handling of relative URLs
-                    split_url(location, uri_base, uri_path, query_string, sizeof(uri_base));
+                    char uri_base[256], uri_path[256], query_str[256];
+                    int redirect_port;
+                    bool redirect_https;
 
-                    // Extract port from uri_base if present (host:port)
-                    int redirect_port = 443;
-                    bool redirect_https = true;
-                    char *port_sep = strchr(uri_base, ':');
-                    if (port_sep)
+                    if (strstr(location, "://"))
                     {
-                        redirect_port = atoi(port_sep + 1);
-                        *port_sep = '\0';
+                        // Absolute URL
+                        split_url(location, uri_base, uri_path, query_str, sizeof(uri_base));
+
+                        // Extract port from uri_base if present (host:port)
+                        redirect_port = 443;
+                        redirect_https = true;
+                        char *port_sep = strchr(uri_base, ':');
+                        if (port_sep)
+                        {
+                            redirect_port = atoi(port_sep + 1);
+                            *port_sep = '\0';
+                        }
+                        if (strncmp(location, "http://", 7) == 0)
+                        {
+                            redirect_https = false;
+                            if (!port_sep) redirect_port = 80;
+                        }
                     }
-                    if (strncmp(location, "http://", 7) == 0)
+                    else
                     {
-                        redirect_https = false;
-                        if (!port_sep) redirect_port = 80;
+                        // Relative URL — reuse current server/port/scheme
+                        strncpy(uri_base, server, sizeof(uri_base) - 1);
+                        uri_base[sizeof(uri_base) - 1] = '\0';
+                        redirect_port = port;
+                        redirect_https = https;
+
+                        const char *qmark = strchr(location, '?');
+                        if (qmark)
+                        {
+                            size_t path_len = qmark - location;
+                            if (path_len >= sizeof(uri_path)) path_len = sizeof(uri_path) - 1;
+                            strncpy(uri_path, location, path_len);
+                            uri_path[path_len] = '\0';
+                            strncpy(query_str, qmark + 1, sizeof(query_str) - 1);
+                            query_str[sizeof(query_str) - 1] = '\0';
+                        }
+                        else
+                        {
+                            strncpy(uri_path, location, sizeof(uri_path) - 1);
+                            uri_path[sizeof(uri_path) - 1] = '\0';
+                            query_str[0] = '\0';
+                        }
                     }
 
                     TRACE_DEBUG("URI Base: %s\r\n", uri_base);
                     TRACE_DEBUG("URI Path: %s\r\n", uri_path);
-                    TRACE_DEBUG("Query String: %s\r\n", query_string);
+                    TRACE_DEBUG("Query String: %s\r\n", query_str);
 
-                    error = web_request_impl(uri_base, redirect_port, redirect_https, uri_path, query_string, "GET", NULL, 0, NULL, cbr, false, false, NULL, redirect_depth + 1);
+                    error = web_request_impl(uri_base, redirect_port, redirect_https, uri_path, query_str, "GET", NULL, 0, NULL, cbr, false, false, NULL, redirect_depth + 1);
                     break;
                 }
             }
