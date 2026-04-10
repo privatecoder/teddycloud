@@ -354,7 +354,7 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     HttpClientContext *httpClientContext = (HttpClientContext *)cloud_ctx;
-    error_t send_err;
+    error_t send_err = NO_ERROR;
 
     // TRACE_INFO(">> cbrCloudBodyPassthrough: %lu received\r\n", length);
     switch (ctx->api)
@@ -406,35 +406,42 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
             }
             if (error == ERROR_END_OF_STREAM)
             {
-                fsCloseFile(ctx->file);
-                ctx->file = NULL;
-                char *tmpPath = custom_asprintf("%s.tmp", ctx->tonieInfo->contentPath);
-
-                if (isValidTaf(tmpPath, true))
+                if (ctx->file != NULL)
                 {
-                    fsDeleteFile(ctx->tonieInfo->contentPath);
-                    fsRenameFile(tmpPath, ctx->tonieInfo->contentPath);
-                    if (fsFileExists(ctx->tonieInfo->contentPath))
-                    {
-                        TRACE_INFO(">> Successfully cached %s\r\n", ctx->tonieInfo->contentPath);
+                    fsCloseFile(ctx->file);
+                    ctx->file = NULL;
+                    char *tmpPath = custom_asprintf("%s.tmp", ctx->tonieInfo->contentPath);
 
-                        if (ctx->client_ctx->settings->cloud.cacheToLibrary)
+                    if (isValidTaf(tmpPath, true))
+                    {
+                        fsDeleteFile(ctx->tonieInfo->contentPath);
+                        fsRenameFile(tmpPath, ctx->tonieInfo->contentPath);
+                        if (fsFileExists(ctx->tonieInfo->contentPath))
                         {
-                            tonie_info_t *tonieInfo = getTonieInfoV2(ctx->tonieInfo->contentPath, true, true, ctx->client_ctx->settings);
-                            moveTAF2Lib(tonieInfo, ctx->client_ctx->settings, false);
-                            freeTonieInfo(tonieInfo);
+                            TRACE_INFO(">> Successfully cached %s\r\n", ctx->tonieInfo->contentPath);
+
+                            if (ctx->client_ctx->settings->cloud.cacheToLibrary)
+                            {
+                                tonie_info_t *tonieInfo = getTonieInfoV2(ctx->tonieInfo->contentPath, true, true, ctx->client_ctx->settings);
+                                moveTAF2Lib(tonieInfo, ctx->client_ctx->settings, false);
+                                freeTonieInfo(tonieInfo);
+                            }
+                        }
+                        else
+                        {
+                            TRACE_ERROR(">> Error caching %s, file not found\r\n", ctx->tonieInfo->contentPath);
                         }
                     }
                     else
                     {
-                        TRACE_ERROR(">> Error caching %s, file not found\r\n", ctx->tonieInfo->contentPath);
+                        TRACE_ERROR(">> Error caching %s, not a valid TAF\r\n", ctx->tonieInfo->contentPath);
                     }
+                    free(tmpPath);
                 }
                 else
                 {
-                    TRACE_ERROR(">> Error caching %s, not a valid TAF\r\n", ctx->tonieInfo->contentPath);
+                    TRACE_WARNING(">> Skipping cache completion for %s because no cache file is open\r\n", ctx->tonieInfo->contentPath);
                 }
-                free(tmpPath);
             }
         }
         send_err = httpSend(ctx->connection, payload, length, HTTP_FLAG_DELAY);
@@ -609,6 +616,8 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
             if (freshRespCloud == NULL)
             {
                 TRACE_ERROR(">> V1 freshness check: failed to unpack cloud response\r\n");
+                osFreeMem(ctx->buffer);
+                ctx->buffer = NULL;
                 break;
             }
 
@@ -677,6 +686,11 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
                 osFreeMem(ctx->buffer);
                 ctx->bufferLen = packSize;
                 ctx->buffer = osAllocMem(ctx->bufferLen);
+                if (ctx->buffer == NULL)
+                {
+                    TRACE_ERROR(">> V1 freshness check: allocation failed for %" PRIuSIZE " bytes\r\n", ctx->bufferLen);
+                    return ERROR_OUT_OF_MEMORY;
+                }
             }
             tonie_freshness_check_response__pack(freshResp, (uint8_t *)ctx->buffer);
 
@@ -744,15 +758,16 @@ void getContentPathFromCharRUID(char ruid[17], char **pcontentPath, settings_t *
 
 void getContentPathFromUID(uint64_t uid, char **pcontentPath, settings_t *settings)
 {
-    uint16_t cuid[9];
-    osSprintf((char *)cuid, "%016" PRIX64 "", uid);
-    uint16_t cruid[9];
+    char cuid[17];
+    osSprintf(cuid, "%016" PRIX64 "", uid);
+    char cruid[17];
     for (uint8_t i = 0; i < 8; i++)
     {
-        cruid[i] = cuid[7 - i];
+        cruid[i * 2] = cuid[(7 - i) * 2];
+        cruid[i * 2 + 1] = cuid[(7 - i) * 2 + 1];
     }
-    cruid[8] = 0;
-    getContentPathFromCharRUID((char *)cruid, pcontentPath, settings);
+    cruid[16] = 0;
+    getContentPathFromCharRUID(cruid, pcontentPath, settings);
 }
 
 void setTonieboxSettings(TonieFreshnessCheckResponse *freshResp, settings_t *settings)
@@ -873,7 +888,7 @@ void readTrackPositions(tonie_info_t *tonieInfo, FsFile *file)
                 break;
             }
 
-            if (!osMemcmp(buffer, "OggS", 4) == 0)
+            if (osMemcmp(buffer, "OggS", 4) != 0)
             {
                 hasError = true;
                 TRACE_ERROR("Invalid OggS header at %" PRIuSIZE ", %s\r\n", filePos, tonieInfo->contentPath);
