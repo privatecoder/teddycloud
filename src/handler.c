@@ -581,8 +581,19 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
     case V1_FRESHNESS_CHECK:
         if (length > 0 && fillCbrBodyCache(ctx, httpClientContext, payload, length))
         {
+            if (ctx->buffer == NULL || ctx->bufferLen == 0)
+            {
+                TRACE_ERROR(">> V1 freshness check: buffer not available\r\n");
+                break;
+            }
             TonieFreshnessCheckResponse *freshResp = (TonieFreshnessCheckResponse *)ctx->customData;
             TonieFreshnessCheckResponse *freshRespCloud = tonie_freshness_check_response__unpack(NULL, ctx->bufferLen, (const uint8_t *)ctx->buffer);
+
+            if (freshRespCloud == NULL)
+            {
+                TRACE_ERROR(">> V1 freshness check: failed to unpack cloud response\r\n");
+                break;
+            }
 
             if (ctx->client_ctx->settings->toniebox.overrideCloud)
             {

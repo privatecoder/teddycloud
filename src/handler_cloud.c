@@ -815,8 +815,7 @@ error_t handleCloudContentExt(HttpConnection *connection, const char_t *uri, con
             cbr_ctx_t ctx;
             req_cbr_t cbr = getCloudCbr(connection, uri, queryString, api, &ctx, client_ctx);
             ctx.tonieInfo = tonieInfo;
-            int_t cloud_err = cloud_request_get(NULL, 0, uri, queryString, token, &cbr);
-            error = cloud_err ? ERROR_FAILURE : NO_ERROR;
+            error = (error_t)cloud_request_get(NULL, 0, uri, queryString, token, &cbr);
         }
     }
     freeTonieInfo(tonieInfo);
