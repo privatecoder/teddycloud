@@ -196,7 +196,7 @@ error_t web_download(const char *url, const char *filename, uint32_t *statusCode
         return NO_ERROR;
     }
 
-    if (*statusCode == 404)
+    if (statusCode != NULL && *statusCode == 404)
     {
         return ERROR_NOT_FOUND;
     }
