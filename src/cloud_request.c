@@ -154,13 +154,12 @@ int_t cloud_request(const char *server, int port, bool https, const char *uri, c
 {
     return web_request(server, port, https, uri, queryString, method, body, bodyLen, hash, cbr, true, true, NULL);
 }
-error_t web_request(const char *server, int port, bool https, const char *uri, const char *queryString, const char *method, const uint8_t *body, size_t bodyLen, const uint8_t *hash, req_cbr_t *cbr, bool isCloud, bool printTextData, uint32_t *statusCode)
+static error_t web_request_impl(const char *server, int port, bool https, const char *uri, const char *queryString, const char *method, const uint8_t *body, size_t bodyLen, const uint8_t *hash, req_cbr_t *cbr, bool isCloud, bool printTextData, uint32_t *statusCode, int redirect_depth)
 {
-    cbr_ctx_t *cbr_ctx = (cbr_ctx_t *)cbr->ctx;
-    client_ctx_t *client_ctx = cbr_ctx->client_ctx;
+    cbr_ctx_t *cbr_ctx = cbr ? (cbr_ctx_t *)cbr->ctx : NULL;
+    client_ctx_t *client_ctx = (cbr_ctx != NULL) ? cbr_ctx->client_ctx : NULL;
     settings_t *settings;
     error_t error = NO_ERROR;
-    static int redirect_counter = 0;
 
     if (client_ctx == NULL)
     {
@@ -375,7 +374,7 @@ error_t web_request(const char *server, int port, bool https, const char *uri, c
                     *statusCode = status;
                 }
 
-                if (status == 302 && redirect_counter < MAX_REDIRECTS)
+                if (status == 302 && redirect_depth < MAX_REDIRECTS)
                 {
                     // Extract location from response header
                     const char *location = httpClientGetHeaderField(&httpClientContext, "Location");
@@ -388,8 +387,6 @@ error_t web_request(const char *server, int port, bool https, const char *uri, c
 
                     TRACE_INFO("Redirecting to: %s\r\n", location);
 
-                    redirect_counter++;
-
                     // Disconnect HTTP client
                     httpClientDisconnect(&httpClientContext);
 
@@ -401,12 +398,10 @@ error_t web_request(const char *server, int port, bool https, const char *uri, c
                     TRACE_DEBUG("URI Path: %s\r\n", uri_path);
                     TRACE_DEBUG("Query String: %s\r\n", query_string);
 
-                    error = web_request(uri_base, 443, true, uri_path, query_string, "GET", NULL, 0, NULL, cbr, false, false, NULL);
+                    error = web_request_impl(uri_base, 443, true, uri_path, query_string, "GET", NULL, 0, NULL, cbr, false, false, NULL, redirect_depth + 1);
                     break;
                 }
             }
-
-            redirect_counter = 0;
 
             if (cbr && cbr->response)
             {
@@ -472,7 +467,13 @@ error_t web_request(const char *server, int port, bool https, const char *uri, c
 
                 if (cbr && cbr->body)
                 {
-                    cbr->body(cbr->ctx, &httpClientContext, (const char *)buffer, length, error);
+                    error_t cbr_error = cbr->body(cbr->ctx, &httpClientContext, (const char *)buffer, length, error);
+                    if (cbr_error && cbr_error != ERROR_END_OF_STREAM)
+                    {
+                        TRACE_WARNING("Body callback aborted download: %s\r\n", error2text(cbr_error));
+                        error = cbr_error;
+                        break;
+                    }
                 }
 
                 // Check status code
@@ -508,10 +509,6 @@ error_t web_request(const char *server, int port, bool https, const char *uri, c
 
             // Gracefully disconnect from the HTTP server
             httpClientDisconnect(&httpClientContext);
-            if (cbr && cbr->disconnect)
-            {
-                cbr->disconnect(cbr->ctx, &httpClientContext);
-            }
 
             // Debug message
             TRACE_DEBUG("Connection closed\r\n");
@@ -526,6 +523,21 @@ error_t web_request(const char *server, int port, bool https, const char *uri, c
     resolve_free(resolve_ctx);
     // Release HTTP client context
     httpClientDeinit(&httpClientContext);
+
+    return error;
+}
+
+error_t web_request(const char *server, int port, bool https, const char *uri, const char *queryString, const char *method, const uint8_t *body, size_t bodyLen, const uint8_t *hash, req_cbr_t *cbr, bool isCloud, bool printTextData, uint32_t *statusCode)
+{
+    error_t error = web_request_impl(server, port, https, uri, queryString, method, body, bodyLen, hash, cbr, isCloud, printTextData, statusCode, 0);
+
+    /* Lifecycle: always invoke disconnect callback so callers waiting on
+     * PROX_STATUS_DONE (handler_reverse.c) are unblocked, regardless of
+     * whether the request completed normally, was aborted, or failed. */
+    if (cbr && cbr->disconnect)
+    {
+        cbr->disconnect(cbr->ctx, NULL);
+    }
 
     return error;
 }
