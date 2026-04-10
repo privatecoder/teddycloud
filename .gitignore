@@ -4,8 +4,11 @@
 /config
 /data
 /report
+/cppcheck
+/cppcheck.xml
 /bin
 /stockaudio
+CLAUDE.md
 contrib/certs/server/ca-key.pem
 contrib/certs/server/ca-root.pem
 contrib/certs/server/ca-root.srl
