@@ -91,8 +91,11 @@ error_t tonies_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const c
         }
         if (errorWrite != NO_ERROR)
         {
-            fsCloseFile(ctx->file);
-            ctx->file = NULL;
+            if (ctx->file != NULL)
+            {
+                fsCloseFile(ctx->file);
+                ctx->file = NULL;
+            }
             TRACE_ERROR("tonies.json (%s) write error=%s\r\n", tonies_json_tmp_path, error2text(errorWrite));
             return errorWrite;
         }
@@ -208,8 +211,11 @@ error_t tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, con
         }
         if (errorWrite != NO_ERROR)
         {
-            fsCloseFile(ctx->file);
-            ctx->file = NULL;
+            if (ctx->file != NULL)
+            {
+                fsCloseFile(ctx->file);
+                ctx->file = NULL;
+            }
             TRACE_ERROR("tonieboxes.json (%s) write error=%s\r\n", tonies_json_tmp_path, error2text(errorWrite));
             return errorWrite;
         }

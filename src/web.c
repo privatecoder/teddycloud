@@ -143,8 +143,11 @@ error_t web_dl_cbr(void *src_ctx, HttpClientContext *cloud_ctx, const char *payl
         }
         if (errorWrite != NO_ERROR)
         {
-            fsCloseFile(ctx->file);
-            ctx->file = NULL;
+            if (ctx->file != NULL)
+            {
+                fsCloseFile(ctx->file);
+                ctx->file = NULL;
+            }
             TRACE_ERROR("write error=%s\r\n", error2text(errorWrite));
             return errorWrite;
         }

@@ -309,7 +309,7 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
                 httpClientAddHeaderField(&httpClientContext, "Authorization", auth_line);
             }
 
-            if (cbr_ctx->user_agent)
+            if (cbr_ctx && cbr_ctx->user_agent)
             {
                 httpClientAddHeaderField(&httpClientContext, "User-Agent", cbr_ctx->user_agent);
             }
