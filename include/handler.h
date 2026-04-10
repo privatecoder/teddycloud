@@ -72,6 +72,7 @@ typedef struct
     tonie_info_t *tonieInfo;
     void *customData;
     size_t customDataLen;
+    size_t total_sent;
     HttpConnection *connection;
     client_ctx_t *client_ctx;
 } cbr_ctx_t;
@@ -79,18 +80,18 @@ typedef struct
 void fillBaseCtx(HttpConnection *connection, const char_t *uri, const char_t *queryString, cloudapi_t api, cbr_ctx_t *ctx, client_ctx_t *client_ctx);
 req_cbr_t getCloudOtaCbr(HttpConnection *connection, const char_t *uri, const char_t *queryString, cloudapi_t api, cbr_ctx_t *ctx, client_ctx_t *client_ctx);
 void cbrCloudOtaHeader(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value);
-void cbrCloudOtaBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error);
+error_t cbrCloudOtaBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error);
 
 req_cbr_t getGenericCbr(HttpConnection *connection, const char_t *uri, const char_t *queryString, cloudapi_t api, cbr_ctx_t *ctx, client_ctx_t *client_ctx);
 void cbrGenericResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ctx);
 void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value);
-void cbrGenericBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error);
+error_t cbrGenericBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error);
 void cbrGenericServerDiscoPassthrough(void *src_ctx, HttpClientContext *cloud_ctx);
 
 req_cbr_t getCloudCbr(HttpConnection *connection, const char_t *uri, const char_t *queryString, cloudapi_t api, cbr_ctx_t *ctx, client_ctx_t *client_ctx);
 void cbrCloudResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ctx);
 void cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *header, const char *value);
-void cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error);
+error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error);
 void cbrCloudServerDiscoPassthrough(void *src_ctx, HttpClientContext *cloud_ctx);
 
 char *strupr(char input[]);
