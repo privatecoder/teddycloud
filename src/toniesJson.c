@@ -342,6 +342,45 @@ uint32_t tonies_jsonGetUInt32(cJSON *jsonElement, char *name)
     return 0;
 }
 
+static void toniesV2_deinit_base(toniesV2Json_item_t *toniesCache, size_t *toniesCount)
+{
+#if TONIES_JSON_CACHED == 1
+    size_t count = *toniesCount;
+    *toniesCount = 0;
+    for (size_t i = 0; i < count; i++)
+    {
+        toniesV2Json_item_t *item = &toniesCache[i];
+        osFreeMem(item->article);
+
+        for (size_t data_idx = 0; data_idx < item->data_count; data_idx++)
+        {
+            toniesV2Json_data_t *data = &item->data[data_idx];
+            osFreeMem(data->series);
+            osFreeMem(data->episode);
+            osFreeMem(data->language);
+            osFreeMem(data->category);
+            osFreeMem(data->image);
+            osFreeMem(data->sample);
+            osFreeMem(data->web);
+            osFreeMem(data->shop_id);
+            for (size_t track_idx = 0; track_idx < data->track_desc_count; track_idx++)
+            {
+                osFreeMem(data->track_desc[track_idx]);
+            }
+            osFreeMem(data->track_desc);
+        }
+        osFreeMem(item->data);
+
+        for (size_t ids_idx = 0; ids_idx < item->ids_count; ids_idx++)
+        {
+            osFreeMem(item->ids[ids_idx].hash);
+        }
+        osFreeMem(item->ids);
+    }
+    osFreeMem(toniesCache);
+#endif
+}
+
 void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCount)
 {
 #if TONIES_JSON_CACHED == 1
@@ -498,7 +537,130 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
 void toniesV2_readJson(char *source, toniesV2Json_item_t **toniesCache, size_t *toniesCount)
 {
 #if TONIES_JSON_CACHED == 1
+    size_t v2_count = 0;
+    toniesV2Json_item_t *v2_cache = NULL;
 
+    size_t fileSize = 0;
+    fsGetFileSize(source, (uint32_t *)(&fileSize));
+    TRACE_INFO("Trying to read %s with size %" PRIuSIZE "\r\n", source, fileSize);
+
+    FsFile *fsFile = fsOpenFile(source, FS_FILE_MODE_READ);
+    if (fsFile != NULL)
+    {
+        size_t sizeRead;
+        char *data = osAllocMem(fileSize);
+        size_t pos = 0;
+
+        while (data != NULL && pos < fileSize)
+        {
+            fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+            pos += sizeRead;
+        }
+        fsCloseFile(fsFile);
+
+        cJSON *toniesJson = data ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
+        cJSON *tonieJson;
+        osFreeMem(data);
+        if (toniesJson == NULL)
+        {
+            if (fileSize > 0)
+            {
+                TRACE_ERROR("Json parse error\r\n");
+            }
+            cJSON_Delete(toniesJson);
+        }
+        else
+        {
+            v2_count = cJSON_GetArraySize(toniesJson);
+            v2_cache = osAllocMem(v2_count * sizeof(toniesV2Json_item_t));
+            if (v2_cache != NULL)
+            {
+                size_t line = 0;
+                cJSON_ArrayForEach(tonieJson, toniesJson)
+                {
+                    toniesV2Json_item_t *item = &v2_cache[line++];
+                    osMemset(item, 0, sizeof(*item));
+                    item->article = tonies_jsonGetString(tonieJson, "article");
+
+                    cJSON *dataArray = cJSON_GetObjectItemCaseSensitive(tonieJson, "data");
+                    item->data_count = (uint8_t)cJSON_GetArraySize(dataArray);
+                    if (item->data_count > 0)
+                    {
+                        item->data = osAllocMem(item->data_count * sizeof(toniesV2Json_data_t));
+                    }
+                    for (size_t data_idx = 0; item->data != NULL && data_idx < item->data_count; data_idx++)
+                    {
+                        toniesV2Json_data_t *data_item = &item->data[data_idx];
+                        osMemset(data_item, 0, sizeof(*data_item));
+                        cJSON *dataJson = cJSON_GetArrayItem(dataArray, data_idx);
+                        data_item->series = tonies_jsonGetString(dataJson, "series");
+                        data_item->episode = tonies_jsonGetString(dataJson, "episode");
+                        data_item->release = tonies_jsonGetUInt32(dataJson, "release");
+                        data_item->language = tonies_jsonGetString(dataJson, "language");
+                        data_item->category = tonies_jsonGetString(dataJson, "category");
+                        data_item->image = tonies_jsonGetString(dataJson, "image");
+                        data_item->sample = tonies_jsonGetString(dataJson, "sample");
+                        data_item->web = tonies_jsonGetString(dataJson, "web");
+                        data_item->shop_id = tonies_jsonGetString(dataJson, "shop_id");
+
+                        cJSON *trackDescArray = cJSON_GetObjectItemCaseSensitive(dataJson, "track_desc");
+                        data_item->track_desc_count = (uint8_t)cJSON_GetArraySize(trackDescArray);
+                        if (data_item->track_desc_count > 0)
+                        {
+                            data_item->track_desc = osAllocMem(data_item->track_desc_count * sizeof(char *));
+                        }
+                        for (size_t track_idx = 0; data_item->track_desc != NULL && track_idx < data_item->track_desc_count; track_idx++)
+                        {
+                            cJSON *trackDescItem = cJSON_GetArrayItem(trackDescArray, track_idx);
+                            data_item->track_desc[track_idx] = cJSON_IsString(trackDescItem) ? strdup(trackDescItem->valuestring) : strdup("");
+                        }
+                    }
+
+                    cJSON *idsArray = cJSON_GetObjectItemCaseSensitive(tonieJson, "ids");
+                    item->ids_count = (uint8_t)cJSON_GetArraySize(idsArray);
+                    if (item->ids_count > 0)
+                    {
+                        item->ids = osAllocMem(item->ids_count * sizeof(toniesV2Json_ids_t));
+                    }
+                    for (size_t ids_idx = 0; item->ids != NULL && ids_idx < item->ids_count; ids_idx++)
+                    {
+                        toniesV2Json_ids_t *id_item = &item->ids[ids_idx];
+                        osMemset(id_item, 0, sizeof(*id_item));
+                        cJSON *idsJson = cJSON_GetArrayItem(idsArray, ids_idx);
+                        id_item->audio_id = tonies_jsonGetUInt32(idsJson, "audio_id");
+                        id_item->hash = tonies_jsonGetString(idsJson, "hash");
+                        id_item->size = tonies_jsonGetUInt32(idsJson, "size");
+                        id_item->tracks = (uint8_t) tonies_jsonGetUInt32(idsJson, "tracks");
+                        id_item->confidence = (uint8_t) tonies_jsonGetUInt32(idsJson, "confidence");
+                    }
+                }
+            }
+            else if (v2_count > 0)
+            {
+                TRACE_ERROR("Failed to allocate V2 tonies cache (%" PRIuSIZE " entries)\r\n", v2_count);
+                v2_count = 0;
+            }
+            cJSON_Delete(toniesJson);
+        }
+    }
+    else
+    {
+        TRACE_INFO("Create empty json file\r\n");
+        fsFile = fsOpenFile(source, FS_FILE_MODE_WRITE);
+        if (fsFile != NULL)
+        {
+            fsWriteFile(fsFile, "[]", 2);
+            fsCloseFile(fsFile);
+        }
+        else
+        {
+            TRACE_ERROR("...could not create file\r\n");
+        }
+    }
+
+    toniesV2_deinit_base(*toniesCache, toniesCount);
+    *toniesCache = v2_cache;
+    *toniesCount = v2_count;
 #endif
 }
 
@@ -761,18 +923,29 @@ void tonies_deinit()
     mutex_lock(MUTEX_TONIES_JSON_CACHE);
     tonies_deinit_base(toniesJsonCache, &toniesJsonCount);
     tonies_deinit_base(toniesCustomJsonCache, &toniesCustomJsonCount);
+    toniesV2_deinit_base(toniesV2JsonCache, &toniesV2JsonCount);
+    toniesV2_deinit_base(toniesV2CustomJsonCache, &toniesV2CustomJsonCount);
 
     toniesJsonCache = NULL;
     toniesCustomJsonCache = NULL;
+    toniesV2JsonCache = NULL;
+    toniesV2CustomJsonCache = NULL;
 
     osFreeMem(tonies_json_path);
     osFreeMem(tonies_custom_json_path);
     osFreeMem(tonies_json_tmp_path);
+    osFreeMem(toniesV2_json_path);
+    osFreeMem(toniesV2_custom_json_path);
+    osFreeMem(toniesV2_json_tmp_path);
 
     tonies_json_path = NULL;
     tonies_custom_json_path = NULL;
     tonies_json_tmp_path = NULL;
+    toniesV2_json_path = NULL;
+    toniesV2_custom_json_path = NULL;
+    toniesV2_json_tmp_path = NULL;
 
     toniesJsonInitialized = false;
+    toniesV2JsonInitialized = false;
     mutex_unlock(MUTEX_TONIES_JSON_CACHE);
 }
