@@ -179,7 +179,7 @@ void cbrCloudOtaHeader(void *src_ctx, HttpClientContext *cloud_ctx, const char *
 
     ctx->status = PROX_STATUS_HEAD;
 }
-void cbrCloudOtaBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+error_t cbrCloudOtaBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     error_t ferror = NO_ERROR;
@@ -190,11 +190,17 @@ void cbrCloudOtaBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *pa
         {
             ferror = fsWriteFile(ctx->file, (void *)payload, length);
             if (ferror)
+            {
                 TRACE_ERROR(">> fsWriteFile Error: %s\r\n", error2text(ferror));
+                fsCloseFile(ctx->file);
+                ctx->file = NULL;
+                return ferror;
+            }
         }
         if (error == ERROR_END_OF_STREAM)
         {
             fsCloseFile(ctx->file);
+            ctx->file = NULL;
             char *local_filename = (char *)ctx->customData;
             char *local_filename_tmp = custom_asprintf("%s.tmp", local_filename);
             uint32_t fileSize = 0;
@@ -221,6 +227,7 @@ void cbrCloudOtaBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *pa
     }
 
     ctx->status = PROX_STATUS_BODY;
+    return NO_ERROR;
 }
 
 req_cbr_t getCloudCbr(HttpConnection *connection, const char_t *uri, const char_t *queryString, cloudapi_t api, cbr_ctx_t *ctx, client_ctx_t *client_ctx)
