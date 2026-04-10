@@ -757,13 +757,19 @@ void split_url(const char *location, char *uri_base, char *uri_path, char *query
     const char *path_start = strchr(scheme_end, '/');
     if (!path_start)
     {
-        // URL like "https://example.com" with no path — extract host and default path to "/"
-        size_t base_len = strlen(scheme_end);
+        // URL like "https://example.com" or "https://example.com?x=1" — no path separator
+        const char *query_in_host = strchr(scheme_end, '?');
+        size_t base_len = query_in_host ? (size_t)(query_in_host - scheme_end) : strlen(scheme_end);
         if (base_len >= buf_size) base_len = buf_size - 1;
         strncpy(uri_base, scheme_end, base_len);
         uri_base[base_len] = '\0';
         strncpy(uri_path, "/", buf_size - 1);
         uri_path[buf_size - 1] = '\0';
+        if (query_in_host)
+        {
+            strncpy(query_string, query_in_host + 1, buf_size - 1);
+            query_string[buf_size - 1] = '\0';
+        }
         return;
     }
     const char *query_start = strchr(path_start, '?');

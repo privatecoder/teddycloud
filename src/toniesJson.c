@@ -415,17 +415,22 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
 
         while (data != NULL && pos < fileSize)
         {
-            fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+            error_t read_err = fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+            if (read_err != NO_ERROR || sizeRead == 0)
+            {
+                TRACE_ERROR("Failed to read %s at offset %" PRIuSIZE ", error=%s\r\n", source, pos, error2text(read_err));
+                break;
+            }
             pos += sizeRead;
         }
         fsCloseFile(fsFile);
 
-        cJSON *toniesJson = data ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
+        cJSON *toniesJson = (data && pos == fileSize) ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
         cJSON *tonieJson;
         osFreeMem(data);
         if (toniesJson == NULL)
         {
-            if (fileSize > 0)
+            if (fileSize > 0 && pos == fileSize)
             {
                 const char *error_ptr = cJSON_GetErrorPtr();
                 TRACE_ERROR("Json parse error\r\n");
@@ -496,11 +501,15 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
                 if (item->tracks_count > 0)
                 {
                     item->tracks = osAllocMem(item->tracks_count * sizeof(char *));
-                    uint8_t i = 0;
-                    const cJSON *track;
-                    cJSON_ArrayForEach(track, tracks)
+                    if (item->tracks == NULL)
                     {
-                        if (item->tracks != NULL)
+                        item->tracks_count = 0;
+                    }
+                    else
+                    {
+                        uint8_t i = 0;
+                        const cJSON *track;
+                        cJSON_ArrayForEach(track, tracks)
                         {
                             item->tracks[i++] = strdup(track->valuestring);
                         }
@@ -586,17 +595,22 @@ void toniesV2_readJson(char *source, toniesV2Json_item_t **toniesCache, size_t *
 
         while (data != NULL && pos < fileSize)
         {
-            fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+            error_t read_err = fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+            if (read_err != NO_ERROR || sizeRead == 0)
+            {
+                TRACE_ERROR("Failed to read %s at offset %" PRIuSIZE ", error=%s\r\n", source, pos, error2text(read_err));
+                break;
+            }
             pos += sizeRead;
         }
         fsCloseFile(fsFile);
 
-        cJSON *toniesJson = data ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
+        cJSON *toniesJson = (data && pos == fileSize) ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
         cJSON *tonieJson;
         osFreeMem(data);
         if (toniesJson == NULL)
         {
-            if (fileSize > 0)
+            if (fileSize > 0 && pos == fileSize)
             {
                 TRACE_ERROR("Json parse error\r\n");
             }

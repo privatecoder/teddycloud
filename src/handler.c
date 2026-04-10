@@ -547,6 +547,18 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
             // Re-build json response from updated freshResp
             cJSON *newRespJson = cJSON_CreateObject();
             cJSON *newItemsArray = cJSON_CreateArray();
+            if (newRespJson == NULL || newItemsArray == NULL)
+            {
+                TRACE_ERROR(">> V3 freshness check: cJSON allocation failed\r\n");
+                cJSON_Delete(newRespJson);
+                cJSON_Delete(newItemsArray);
+                if (ctx->buffer)
+                {
+                    osFreeMem(ctx->buffer);
+                    ctx->buffer = NULL;
+                }
+                return ERROR_OUT_OF_MEMORY;
+            }
             cJSON_AddItemToObject(newRespJson, "items", newItemsArray);
 
             for (size_t j = 0; j < freshResp->n_tonie_marked; j++)
@@ -565,6 +577,17 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
             }
 
             char *response_json = cJSON_PrintUnformatted(newRespJson);
+            if (response_json == NULL)
+            {
+                TRACE_ERROR(">> V3 freshness check: cJSON_PrintUnformatted failed\r\n");
+                cJSON_Delete(newRespJson);
+                if (ctx->buffer)
+                {
+                    osFreeMem(ctx->buffer);
+                    ctx->buffer = NULL;
+                }
+                return ERROR_OUT_OF_MEMORY;
+            }
             size_t dataLen = osStrlen(response_json);
 
             char line[128];
