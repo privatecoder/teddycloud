@@ -572,7 +572,7 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
                     TRACE_DEBUG("URI Path: %s\r\n", uri_path);
                     TRACE_DEBUG("Query String: %s\r\n", query_str);
 
-                    error = web_request_impl(uri_base, redirect_port, redirect_https, uri_path, query_str, "GET", NULL, 0, NULL, cbr, false, false, NULL, redirect_depth + 1);
+                    error = web_request_impl(uri_base, redirect_port, redirect_https, uri_path, query_str, "GET", NULL, 0, NULL, cbr, isCloud, false, NULL, redirect_depth + 1);
                     break;
                 }
             }
@@ -757,7 +757,13 @@ void split_url(const char *location, char *uri_base, char *uri_path, char *query
     const char *path_start = strchr(scheme_end, '/');
     if (!path_start)
     {
-        TRACE_ERROR("Invalid URL: Path not found\n");
+        // URL like "https://example.com" with no path — extract host and default path to "/"
+        size_t base_len = strlen(scheme_end);
+        if (base_len >= buf_size) base_len = buf_size - 1;
+        strncpy(uri_base, scheme_end, base_len);
+        uri_base[base_len] = '\0';
+        strncpy(uri_path, "/", buf_size - 1);
+        uri_path[buf_size - 1] = '\0';
         return;
     }
     const char *query_start = strchr(path_start, '?');

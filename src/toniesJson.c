@@ -352,30 +352,39 @@ static void toniesV2_deinit_base(toniesV2Json_item_t *toniesCache, size_t *tonie
         toniesV2Json_item_t *item = &toniesCache[i];
         osFreeMem(item->article);
 
-        for (size_t data_idx = 0; data_idx < item->data_count; data_idx++)
+        if (item->data != NULL)
         {
-            toniesV2Json_data_t *data = &item->data[data_idx];
-            osFreeMem(data->series);
-            osFreeMem(data->episode);
-            osFreeMem(data->language);
-            osFreeMem(data->category);
-            osFreeMem(data->image);
-            osFreeMem(data->sample);
-            osFreeMem(data->web);
-            osFreeMem(data->shop_id);
-            for (size_t track_idx = 0; track_idx < data->track_desc_count; track_idx++)
+            for (size_t data_idx = 0; data_idx < item->data_count; data_idx++)
             {
-                osFreeMem(data->track_desc[track_idx]);
+                toniesV2Json_data_t *data = &item->data[data_idx];
+                osFreeMem(data->series);
+                osFreeMem(data->episode);
+                osFreeMem(data->language);
+                osFreeMem(data->category);
+                osFreeMem(data->image);
+                osFreeMem(data->sample);
+                osFreeMem(data->web);
+                osFreeMem(data->shop_id);
+                if (data->track_desc != NULL)
+                {
+                    for (size_t track_idx = 0; track_idx < data->track_desc_count; track_idx++)
+                    {
+                        osFreeMem(data->track_desc[track_idx]);
+                    }
+                    osFreeMem(data->track_desc);
+                }
             }
-            osFreeMem(data->track_desc);
+            osFreeMem(item->data);
         }
-        osFreeMem(item->data);
 
-        for (size_t ids_idx = 0; ids_idx < item->ids_count; ids_idx++)
+        if (item->ids != NULL)
         {
-            osFreeMem(item->ids[ids_idx].hash);
+            for (size_t ids_idx = 0; ids_idx < item->ids_count; ids_idx++)
+            {
+                osFreeMem(item->ids[ids_idx].hash);
+            }
+            osFreeMem(item->ids);
         }
-        osFreeMem(item->ids);
     }
     osFreeMem(toniesCache);
 #endif
@@ -396,16 +405,22 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
     {
         size_t sizeRead;
         char *data = osAllocMem(fileSize);
+        if (data == NULL && fileSize > 0)
+        {
+            TRACE_ERROR("Failed to allocate %" PRIuSIZE " bytes for JSON data\r\n", fileSize);
+            fsCloseFile(fsFile);
+            goto tonies_readJson_done;
+        }
         size_t pos = 0;
 
-        while (pos < fileSize)
+        while (data != NULL && pos < fileSize)
         {
             fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
             pos += sizeRead;
         }
         fsCloseFile(fsFile);
 
-        cJSON *toniesJson = cJSON_ParseWithLengthOpts(data, fileSize, 0, 0);
+        cJSON *toniesJson = data ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
         cJSON *tonieJson;
         osFreeMem(data);
         if (toniesJson == NULL)
@@ -426,10 +441,18 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
             size_t line = 0;
             toniesCount = cJSON_GetArraySize(toniesJson);
             toniesCache = osAllocMem(toniesCount * sizeof(toniesJson_item_t));
+            if (toniesCache == NULL && toniesCount > 0)
+            {
+                TRACE_ERROR("Failed to allocate tonies cache (%" PRIuSIZE " entries)\r\n", toniesCount);
+                toniesCount = 0;
+                cJSON_Delete(toniesJson);
+                goto tonies_readJson_done;
+            }
             cJSON_ArrayForEach(tonieJson, toniesJson)
             {
                 cJSON *arrayJson;
                 toniesJson_item_t *item = &toniesCache[line++];
+                osMemset(item, 0, sizeof(*item));
                 char *no_str = tonies_jsonGetString(tonieJson, "no");
                 item->no = atoi(no_str);
                 free(no_str);
@@ -437,16 +460,22 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
 
                 arrayJson = cJSON_GetObjectItem(tonieJson, "audio_id");
                 item->audio_ids_count = (uint8_t)cJSON_GetArraySize(arrayJson);
-                item->audio_ids = osAllocMem(item->audio_ids_count * sizeof(uint32_t));
-                for (size_t i = 0; i < item->audio_ids_count; i++)
+                if (item->audio_ids_count > 0)
+                {
+                    item->audio_ids = osAllocMem(item->audio_ids_count * sizeof(uint32_t));
+                }
+                for (size_t i = 0; item->audio_ids != NULL && i < item->audio_ids_count; i++)
                 {
                     cJSON *arrayItemJson = cJSON_GetArrayItem(arrayJson, i);
                     item->audio_ids[i] = atoi(arrayItemJson->valuestring);
                 }
                 arrayJson = cJSON_GetObjectItem(tonieJson, "hash");
                 item->hashes_count = (uint8_t)cJSON_GetArraySize(arrayJson);
-                item->hashes = osAllocMem(item->hashes_count * sizeof(uint8_t) * 20);
-                for (size_t i = 0; i < item->hashes_count; i++)
+                if (item->hashes_count > 0)
+                {
+                    item->hashes = osAllocMem(item->hashes_count * sizeof(uint8_t) * 20);
+                }
+                for (size_t i = 0; item->hashes != NULL && i < item->hashes_count; i++)
                 {
                     cJSON *arrayItemJson = cJSON_GetArrayItem(arrayJson, i);
                     if (arrayItemJson->valuestring == NULL || osStrlen(arrayItemJson->valuestring) != 40)
@@ -471,7 +500,10 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
                     const cJSON *track;
                     cJSON_ArrayForEach(track, tracks)
                     {
-                        item->tracks[i++] = strdup(track->valuestring);
+                        if (item->tracks != NULL)
+                        {
+                            item->tracks[i++] = strdup(track->valuestring);
+                        }
                     }
                 }
 
@@ -521,6 +553,7 @@ void tonies_readJson(char *source, toniesJson_item_t **retCache, size_t *retCoun
         }
     }
 
+tonies_readJson_done:
     /* first save old pointer, then update return values */
     void *oldPtr = *retCache;
 

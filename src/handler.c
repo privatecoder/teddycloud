@@ -684,14 +684,15 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
             if (ctx->bufferLen < packSize)
             {
                 osFreeMem(ctx->buffer);
-                ctx->bufferLen = packSize;
-                ctx->buffer = osAllocMem(ctx->bufferLen);
+                ctx->buffer = osAllocMem(packSize);
                 if (ctx->buffer == NULL)
                 {
-                    TRACE_ERROR(">> V1 freshness check: allocation failed for %" PRIuSIZE " bytes\r\n", ctx->bufferLen);
+                    TRACE_ERROR(">> V1 freshness check: allocation failed for %" PRIuSIZE " bytes\r\n", packSize);
+                    ctx->bufferLen = 0;
                     return ERROR_OUT_OF_MEMORY;
                 }
             }
+            ctx->bufferLen = packSize;
             tonie_freshness_check_response__pack(freshResp, (uint8_t *)ctx->buffer);
 
             TRACE_INFO("Setting freshnessCache with %" PRIuSIZE " entries\r\n", freshResp->n_tonie_marked);
