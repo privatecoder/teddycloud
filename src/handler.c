@@ -326,7 +326,21 @@ bool fillCbrBodyCache(cbr_ctx_t *ctx, HttpClientContext *httpClientContext, cons
     if (ctx->bufferPos == 0)
     {
         ctx->bufferLen = httpClientContext->bodyLen; // ctx->connection->response.contentLength;
+        if (ctx->bufferLen == 0)
+        {
+            return true;
+        }
         ctx->buffer = osAllocMem(ctx->bufferLen);
+        if (ctx->buffer == NULL)
+        {
+            TRACE_ERROR(">> fillCbrBodyCache: allocation failed for %" PRIuSIZE " bytes\r\n", ctx->bufferLen);
+            ctx->bufferLen = 0;
+            return true;
+        }
+    }
+    if (ctx->buffer == NULL || ctx->bufferPos + length > ctx->bufferLen)
+    {
+        return true;
     }
     osMemcpy(&ctx->buffer[ctx->bufferPos], payload, length);
     ctx->bufferPos += length;
@@ -360,7 +374,11 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
                 char *tmpPath = custom_asprintf("%s.tmp", ctx->tonieInfo->contentPath);
 
                 char *dir = strdup(ctx->tonieInfo->contentPath);
-                dir[osStrlen(dir) - 8] = '\0';
+                size_t dir_len = osStrlen(dir);
+                if (dir_len >= 8)
+                {
+                    dir[dir_len - 8] = '\0';
+                }
                 fsCreateDir(dir);
 
                 ctx->file = fsOpenFile(tmpPath, FS_FILE_MODE_WRITE | FS_FILE_MODE_TRUNC);

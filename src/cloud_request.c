@@ -211,6 +211,7 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
         error = httpClientRegisterTlsInitCallback(&httpClientContext, callback);
         if (error)
         {
+            httpClientDeinit(&httpClientContext);
             return error;
         }
     }
@@ -218,11 +219,13 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
     error = httpClientSetVersion(&httpClientContext, HTTP_VERSION_1_1);
     if (error)
     {
+        httpClientDeinit(&httpClientContext);
         return error;
     }
     error = httpClientSetTimeout(&httpClientContext, settings->core.http_client_timeout);
     if (error)
     {
+        httpClientDeinit(&httpClientContext);
         return error;
     }
 
@@ -232,6 +235,7 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
         TRACE_ERROR("Failed to resolve ipv4 address!\r\n");
         if (isCloud)
             stats_update("cloud_failed", 1);
+        httpClientDeinit(&httpClientContext);
         return ERROR_ADDRESS_NOT_FOUND;
     }
 
@@ -392,13 +396,28 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
 
                     char uri_base[256], uri_path[256], query_string[256];
                     // TODO: handling of relative URLs
-                    split_url(location, uri_base, uri_path, query_string);
+                    split_url(location, uri_base, uri_path, query_string, sizeof(uri_base));
+
+                    // Extract port from uri_base if present (host:port)
+                    int redirect_port = 443;
+                    bool redirect_https = true;
+                    char *port_sep = strchr(uri_base, ':');
+                    if (port_sep)
+                    {
+                        redirect_port = atoi(port_sep + 1);
+                        *port_sep = '\0';
+                    }
+                    if (strncmp(location, "http://", 7) == 0)
+                    {
+                        redirect_https = false;
+                        if (!port_sep) redirect_port = 80;
+                    }
 
                     TRACE_DEBUG("URI Base: %s\r\n", uri_base);
                     TRACE_DEBUG("URI Path: %s\r\n", uri_path);
                     TRACE_DEBUG("Query String: %s\r\n", query_string);
 
-                    error = web_request_impl(uri_base, 443, true, uri_path, query_string, "GET", NULL, 0, NULL, cbr, false, false, NULL, redirect_depth + 1);
+                    error = web_request_impl(uri_base, redirect_port, redirect_https, uri_path, query_string, "GET", NULL, 0, NULL, cbr, false, false, NULL, redirect_depth + 1);
                     break;
                 }
             }
@@ -534,7 +553,8 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
         {
             break;
         }
-    } while (0);
+        pos++;
+    } while (1);
 
     resolve_free(resolve_ctx);
     // Release HTTP client context
@@ -558,8 +578,12 @@ error_t web_request(const char *server, int port, bool https, const char *uri, c
     return error;
 }
 
-void split_url(const char *location, char *uri_base, char *uri_path, char *query_string)
+void split_url(const char *location, char *uri_base, char *uri_path, char *query_string, size_t buf_size)
 {
+    uri_base[0] = '\0';
+    uri_path[0] = '\0';
+    query_string[0] = '\0';
+
     const char *scheme_end = strstr(location, "://");
     if (!scheme_end)
     {
@@ -577,29 +601,28 @@ void split_url(const char *location, char *uri_base, char *uri_path, char *query
     }
     const char *query_start = strchr(path_start, '?');
 
+    // Copy base URI without scheme
+    size_t base_len = path_start - scheme_end;
+    if (base_len >= buf_size) base_len = buf_size - 1;
+    strncpy(uri_base, scheme_end, base_len);
+    uri_base[base_len] = '\0';
+
     if (query_start)
     {
-        // Copy base URI without scheme
-        strncpy(uri_base, scheme_end, path_start - scheme_end);
-        uri_base[path_start - scheme_end] = '\0';
-
         // Copy path
-        strncpy(uri_path, path_start, query_start - path_start);
-        uri_path[query_start - path_start] = '\0';
+        size_t path_len = query_start - path_start;
+        if (path_len >= buf_size) path_len = buf_size - 1;
+        strncpy(uri_path, path_start, path_len);
+        uri_path[path_len] = '\0';
 
         // Copy query string
-        strcpy(query_string, query_start + 1);
+        strncpy(query_string, query_start + 1, buf_size - 1);
+        query_string[buf_size - 1] = '\0';
     }
     else
     {
-        // Copy base URI without scheme
-        strncpy(uri_base, scheme_end, path_start - scheme_end);
-        uri_base[path_start - scheme_end] = '\0';
-
         // Copy path
-        strcpy(uri_path, path_start);
-
-        // No query string
-        query_string[0] = '\0';
+        strncpy(uri_path, path_start, buf_size - 1);
+        uri_path[buf_size - 1] = '\0';
     }
 }

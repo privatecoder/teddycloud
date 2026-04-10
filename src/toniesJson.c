@@ -52,7 +52,7 @@ void tonies_init()
         toniesV2CustomJsonCount = 0;
         toniesV2_json_path = custom_asprintf("%s%c%s", settings_get_string("internal.configdirfull"), PATH_SEPARATOR, TONIESV2_JSON_FILE);
         toniesV2_custom_json_path = custom_asprintf("%s%c%s", settings_get_string("internal.configdirfull"), PATH_SEPARATOR, TONIESV2_CUSTOM_JSON_FILE);
-        toniesV2_json_tmp_path = custom_asprintf("%s%c%s", settings_get_string("internal.configdirfull"), PATH_SEPARATOR, TONIES_JSON_TMP_FILE);
+        toniesV2_json_tmp_path = custom_asprintf("%s%c%s.tmp", settings_get_string("internal.configdirfull"), PATH_SEPARATOR, TONIESV2_JSON_FILE);
 
         toniesV2_readJson(toniesV2_custom_json_path, &toniesV2CustomJsonCache, &toniesV2CustomJsonCount);
         toniesV2_readJson(toniesV2_json_path, &toniesV2JsonCache, &toniesV2JsonCount);
@@ -145,9 +145,56 @@ error_t tonies_update()
     return error;
 }
 
+static error_t toniesV2_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
+{
+    cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
+    HttpClientContext *httpClientContext = (HttpClientContext *)cloud_ctx;
+
+    if (httpClientContext->statusCode == 200)
+    {
+        if (ctx->file == NULL)
+        {
+            ctx->file = fsOpenFile(toniesV2_json_tmp_path, FS_FILE_MODE_WRITE | FS_FILE_MODE_TRUNC);
+            if (ctx->file == NULL)
+            {
+                TRACE_ERROR("Failed to open %s for writing\r\n", toniesV2_json_tmp_path);
+                return ERROR_OPEN_FAILED;
+            }
+        }
+        error_t errorWrite = NO_ERROR;
+        if (length > 0)
+        {
+            errorWrite = fsWriteFile(ctx->file, (void *)payload, length);
+        }
+
+        if (error == ERROR_END_OF_STREAM)
+        {
+            fsCloseFile(ctx->file);
+            ctx->file = NULL;
+        }
+        else if (error != NO_ERROR)
+        {
+            fsCloseFile(ctx->file);
+            ctx->file = NULL;
+            TRACE_ERROR("toniesV2.json download body error=%s\r\n", error2text(error));
+        }
+        if (errorWrite != NO_ERROR)
+        {
+            if (ctx->file != NULL)
+            {
+                fsCloseFile(ctx->file);
+                ctx->file = NULL;
+            }
+            TRACE_ERROR("toniesV2.json (%s) write error=%s\r\n", toniesV2_json_tmp_path, error2text(errorWrite));
+            return errorWrite;
+        }
+    }
+    return NO_ERROR;
+}
+
 error_t toniesV2_update()
 {
-    TRACE_INFO("Updating tonies.json from api.revvox.de...\r\n");
+    TRACE_INFO("Updating toniesV2.json from api.revvox.de...\r\n");
     cbr_ctx_t ctx;
     client_ctx_t client_ctx = {
         .settings = get_settings(),
@@ -159,25 +206,25 @@ error_t toniesV2_update()
     fillBaseCtx(NULL, uri_path, queryString, V1_LOG, &ctx, &client_ctx);
     req_cbr_t cbr = {
         .ctx = &ctx,
-        .body = &tonies_downloadBody,
+        .body = &toniesV2_downloadBody,
     };
 
     ctx.file = NULL;
-    fsDeleteFile(tonies_json_tmp_path);
+    fsDeleteFile(toniesV2_json_tmp_path);
     // TODO: Be sure HTTPS CA is checked!
     error_t error = web_request(uri_base, 443, true, uri_path, queryString, "GET", NULL, 0, NULL, &cbr, false, false, NULL);
 
-    if (error == NO_ERROR && fsFileExists(tonies_json_tmp_path))
+    if (error == NO_ERROR && fsFileExists(toniesV2_json_tmp_path))
     {
-        fsDeleteFile(tonies_json_path);
-        fsRenameFile(tonies_json_tmp_path, tonies_json_path);
-        TRACE_INFO("... success updating tonies.json from api.revvox.de, reloading\r\n");
+        fsDeleteFile(toniesV2_json_path);
+        fsRenameFile(toniesV2_json_tmp_path, toniesV2_json_path);
+        TRACE_INFO("... success updating toniesV2.json from api.revvox.de, reloading\r\n");
         tonies_deinit();
         tonies_init();
     }
     else
     {
-        TRACE_ERROR("... failed updating tonies.json error=%s\r\n", error2text(error));
+        TRACE_ERROR("... failed updating toniesV2.json error=%s\r\n", error2text(error));
     }
     return error;
 }
@@ -226,7 +273,7 @@ error_t tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, con
                 fsCloseFile(ctx->file);
                 ctx->file = NULL;
             }
-            TRACE_ERROR("tonieboxes.json (%s) write error=%s\r\n", tonies_json_tmp_path, error2text(errorWrite));
+            TRACE_ERROR("tonieboxes.json write error=%s\r\n", error2text(errorWrite));
             return errorWrite;
         }
     }

@@ -300,6 +300,11 @@ error_t handleReverseGeneric(HttpConnection *connection, const char_t *uri, cons
     
     error_t error = web_request(target->hostname, target->port, target->https, finalPath, NULL, "GET", NULL, 0, NULL, &cbr, false, false, NULL);
 
+    if (cbr_ctx.file != NULL)
+    {
+        fsCloseFile(cbr_ctx.file);
+        cbr_ctx.file = NULL;
+    }
     if (cachePath)
     {
         osFreeMem(cachePath);
