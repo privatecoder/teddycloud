@@ -1726,6 +1726,7 @@ error_t handleApiContent(HttpConnection *connection, const char_t *uri, const ch
     {
         TRACE_DEBUG("Seeking file to %" PRIu32 "\r\n", connection->request.Range.start);
         fsSeekFile(file, startOffset + connection->request.Range.start, FS_SEEK_SET);
+        length = connection->response.contentLength;
     }
     else
     {
