@@ -374,18 +374,19 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
             }
             if (length > 0 && ctx->file != NULL)
             {
-                error = fsWriteFile(ctx->file, (void *)payload, length);
-                if (error)
+                error_t write_err = fsWriteFile(ctx->file, (void *)payload, length);
+                if (write_err)
                 {
-                    TRACE_ERROR(">> fsWriteFile Error: %s\r\n", error2text(error));
+                    TRACE_ERROR(">> fsWriteFile Error: %s\r\n", error2text(write_err));
                     fsCloseFile(ctx->file);
                     ctx->file = NULL;
-                    return error;
+                    return write_err;
                 }
             }
             if (error == ERROR_END_OF_STREAM)
             {
                 fsCloseFile(ctx->file);
+                ctx->file = NULL;
                 char *tmpPath = custom_asprintf("%s.tmp", ctx->tonieInfo->contentPath);
 
                 if (isValidTaf(tmpPath, true))

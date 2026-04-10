@@ -71,6 +71,11 @@ error_t tonies_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const c
         if (ctx->file == NULL)
         {
             ctx->file = fsOpenFile(tonies_json_tmp_path, FS_FILE_MODE_WRITE | FS_FILE_MODE_TRUNC);
+            if (ctx->file == NULL)
+            {
+                TRACE_ERROR("Failed to open %s for writing\r\n", tonies_json_tmp_path);
+                return ERROR_OPEN_FAILED;
+            }
         }
         error_t errorWrite = NO_ERROR;
         if (length > 0)
@@ -191,6 +196,11 @@ error_t tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, con
             ctx->file = fsOpenFile(target_tmp, FS_FILE_MODE_WRITE | FS_FILE_MODE_TRUNC);
             osFreeMem(target);
             osFreeMem(target_tmp);
+            if (ctx->file == NULL)
+            {
+                TRACE_ERROR("Failed to open tonieboxes.json tmp file for writing\r\n");
+                return ERROR_OPEN_FAILED;
+            }
         }
         error_t errorWrite = NO_ERROR;
         if (length > 0)
