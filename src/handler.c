@@ -286,12 +286,17 @@ void cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, cons
     }
     if (passthrough)
     {
+        bool send_line = true;
         if (header)
         {
             if (osStrcmp(header, "Access-Control-Allow-Origin") != 0)
             {
                 TRACE_DEBUG(">> cbrCloudHeaderPassthrough: %s = %s\r\n", header, value);
                 osSprintf(line, "%s: %s\r\n", header, value);
+            }
+            else
+            {
+                send_line = false;
             }
         }
         else
@@ -300,7 +305,10 @@ void cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, cons
             osStrcpy(line, "\r\n");
         }
 
-        httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+        if (send_line)
+        {
+            httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+        }
     }
 
     ctx->status = PROX_STATUS_HEAD;
@@ -1267,6 +1275,7 @@ void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, co
 {
     cbr_ctx_t *ctx = (cbr_ctx_t *)src_ctx;
     char line[2048];
+    bool send_line = true;
 
     if (ctx->status != PROX_STATUS_HEAD) // Only once
     {
@@ -1277,7 +1286,6 @@ void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, co
             {
                 osSprintf(line, "Access-Control-Allow-Origin: %s\r\n", allowOrigin);
                 httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
-                line[0] = '\0';
             }
         }
     }
@@ -1289,6 +1297,10 @@ void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, co
             TRACE_DEBUG(">> cbrGenericHeaderPassthrough: %s = %s\r\n", header, value);
             osSprintf(line, "%s: %s\r\n", header, value);
         }
+        else
+        {
+            send_line = false;
+        }
     }
     else
     {
@@ -1296,7 +1308,10 @@ void cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, co
         osStrcpy(line, "\r\n");
     }
 
-    httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+    if (send_line)
+    {
+        httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
+    }
     ctx->status = PROX_STATUS_HEAD;
 }
 
