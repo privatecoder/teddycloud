@@ -209,6 +209,11 @@ error_t cert_generate_signed(const char *subject, const uint8_t *serial_number, 
 
     /* create certificate */
     uint8_t *cert_der_data = osAllocMem(8192);
+    if (cert_der_data == NULL)
+    {
+        TRACE_ERROR("Failed to allocate certificate DER buffer\r\n");
+        return ERROR_OUT_OF_MEMORY;
+    }
     size_t cert_der_size = 0;
     error_t error = x509CreateCertificate(rand_get_algo(), rand_get_context(), &cert_req, &cert_pubkey, self_sign ? NULL : &issuer_cert, &serial, &validity, &algo, self_sign ? &cert_privkey : &issuer_priv, cert_der_data, &cert_der_size);
     if (error != NO_ERROR)
@@ -229,6 +234,12 @@ error_t cert_generate_signed(const char *subject, const uint8_t *serial_number, 
     }
 
     char_t *cert_pem_data = osAllocMem(cert_pem_size + 1);
+    if (cert_pem_data == NULL)
+    {
+        TRACE_ERROR("Failed to allocate certificate PEM buffer\r\n");
+        osFreeMem(cert_der_data);
+        return ERROR_OUT_OF_MEMORY;
+    }
     if (pemExportCertificate(cert_der_data, cert_der_size, cert_pem_data, &cert_pem_size) != NO_ERROR)
     {
         TRACE_ERROR("pemExportCertificate failed\r\n");

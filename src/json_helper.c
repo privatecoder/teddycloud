@@ -23,18 +23,26 @@ uint8_t *jsonGetBytes(cJSON *jsonElement, char *name, size_t *length)
 {
     char *text = jsonGetString(jsonElement, name);
     uint8_t *bytes = NULL;
+
+    *length = 0;
+    if (text == NULL)
+    {
+        return NULL;
+    }
     size_t textLen = osStrlen(text);
     size_t byteLen = textLen / 2;
 
-    *length = 0;
     if (byteLen > 0)
     {
         bytes = osAllocMem(byteLen);
-        for (size_t i = 0; i < byteLen; i++)
+        if (bytes != NULL)
         {
-            sscanf(&text[i * 2], "%02hhx", &bytes[i]);
+            for (size_t i = 0; i < byteLen; i++)
+            {
+                sscanf(&text[i * 2], "%02hhx", &bytes[i]);
+            }
+            *length = byteLen;
         }
-        *length = byteLen;
     }
 
     osFreeMem(text);
@@ -46,6 +54,10 @@ cJSON *jsonAddByteArrayToObject(cJSON *const object, const char *const name, uin
 {
     size_t string_len = bytes_len * 2 + 1;
     char *string = osAllocMem(string_len);
+    if (string == NULL)
+    {
+        return NULL;
+    }
     string[string_len - 1] = '\0';
 
     for (size_t i = 0; i < bytes_len; i++)

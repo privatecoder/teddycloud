@@ -367,7 +367,10 @@ void overlay_settings_init_opt(setting_item_t *opt, setting_item_t *opt_src)
             if (opt_src->size > 0)
             {
                 *((uint64_t **)opt->ptr) = osAllocMem(sizeof(uint64_t) * opt_src->size);
-                osMemcpy(*((uint64_t **)opt->ptr), *((uint64_t **)opt_src->ptr), sizeof(uint64_t) * opt_src->size);
+                if (*((uint64_t **)opt->ptr) != NULL)
+                {
+                    osMemcpy(*((uint64_t **)opt->ptr), *((uint64_t **)opt_src->ptr), sizeof(uint64_t) * opt_src->size);
+                }
             }
             break;
         default:
@@ -559,6 +562,12 @@ static void settings_generate_internal_dirs(settings_t *settings)
     settings->internal.cachedirfull = osAllocMem(256);
 
     char *tmpPath = osAllocMem(256);
+    if (tmpPath == NULL || settings->internal.basedirfull == NULL || settings->internal.datadirfull == NULL || settings->internal.configdirfull == NULL)
+    {
+        TRACE_ERROR("Failed to allocate internal directory buffers\r\n");
+        osFreeMem(tmpPath);
+        return;
+    }
     settings_resolve_dir(&settings->internal.basedirfull, settings->internal.basedir, settings->internal.cwd);
 
     settings_resolve_dir(&settings->internal.certdirfull, settings->core.certdir, settings->internal.basedirfull);

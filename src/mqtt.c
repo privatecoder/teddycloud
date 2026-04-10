@@ -211,6 +211,11 @@ void mqttTestPublishCallback(MqttClientContext *context,
     TRACE_INFO("  Message (%" PRIuSIZE " bytes):  '%.*s'\r\n", length, (int)length, (char *)message);
 
     char *payload = osAllocMem(length + 1);
+    if (payload == NULL)
+    {
+        TRACE_ERROR("Failed to allocate MQTT payload (%" PRIuSIZE " bytes)\r\n", length + 1);
+        return;
+    }
     osMemcpy(payload, message, length);
     payload[length] = 0;
 
@@ -512,11 +517,17 @@ void mqtt_get_settings(mqtt_ctx_t *mqtt_ctx)
 {
     mqtt_free_settings(mqtt_ctx);
 
-    mqtt_ctx->hostname = strdup(settings_get_string("mqtt.hostname"));
-    mqtt_ctx->identification = strdup(settings_get_string("mqtt.identification"));
-    mqtt_ctx->username = strdup(settings_get_string("mqtt.username"));
-    mqtt_ctx->password = strdup(settings_get_string("mqtt.password"));
-    mqtt_ctx->topic = strdup(settings_get_string("mqtt.topic"));
+    const char *hostname_str = settings_get_string("mqtt.hostname");
+    const char *identification_str = settings_get_string("mqtt.identification");
+    const char *username_str = settings_get_string("mqtt.username");
+    const char *password_str = settings_get_string("mqtt.password");
+    const char *topic_str = settings_get_string("mqtt.topic");
+
+    mqtt_ctx->hostname = hostname_str ? strdup(hostname_str) : NULL;
+    mqtt_ctx->identification = identification_str ? strdup(identification_str) : NULL;
+    mqtt_ctx->username = username_str ? strdup(username_str) : NULL;
+    mqtt_ctx->password = password_str ? strdup(password_str) : NULL;
+    mqtt_ctx->topic = topic_str ? strdup(topic_str) : NULL;
     mqtt_ctx->retain_will = settings_get_bool("mqtt.retain_will");
 }
 

@@ -320,6 +320,12 @@ error_t read_certificate(const char_t *filename, char_t **buffer, size_t *length
         }
 
         outBuf = osAllocMem(outBufLen + 1);
+        if (outBuf == NULL)
+        {
+            TRACE_ERROR("Failed to allocate PEM output buffer (%" PRIuSIZE " bytes)\r\n", outBufLen + 1);
+            osFreeMem(inBuf);
+            return ERROR_OUT_OF_MEMORY;
+        }
         osMemset(outBuf, 0x00, outBufLen + 1);
         error = pemEncodeFile(inBuf, inBufLen, type, outBuf, &outBufLen);
 

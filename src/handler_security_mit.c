@@ -94,6 +94,10 @@ error_t handleSecMitDomain(HttpConnection *connection, const char_t *uri, const 
     sha1Update(&sha1Ctx, host, osStrlen(host));
 
     uint8_t *hash_data = osAllocMem(SHA1_DIGEST_SIZE);
+    if (hash_data == NULL)
+    {
+        return ERROR_OUT_OF_MEMORY;
+    }
     sha1Final(&sha1Ctx, hash_data);
 
     char hash[SHA1_DIGEST_SIZE * 2 + 1];
@@ -155,9 +159,13 @@ error_t handleSecMitRobotsTxt(HttpConnection *connection, const char_t *uri, con
     TRACE_WARNING("robots.txt access detected with User-Agent %s\r\n", connection->request.userAgent);
 
     char_t *newUri = custom_asprintf("%s%s", client_ctx->settings->core.wwwdir, uri);
+    if (newUri == NULL)
+    {
+        return ERROR_OUT_OF_MEMORY;
+    }
 
     error_t error = httpSendResponse(connection, newUri);
-    free(newUri);
+    osFreeMem(newUri);
 
     return error;
 }

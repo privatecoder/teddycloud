@@ -30,6 +30,10 @@ void ha_addstrarray(cJSON *json_obj, const char *name, const char *value)
     if (value && strlen(value) > 0)
     {
         char *tmp_value = osAllocMem(osStrlen(value) + 1);
+        if (tmp_value == NULL)
+        {
+            return;
+        }
         osStrcpy(tmp_value, value);
         cJSON *json_arr = cJSON_AddArrayToObject(json_obj, name);
 

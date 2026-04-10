@@ -165,7 +165,7 @@ error_t load_content_json(const char *content_path, contentJson_t *content_json,
         error = save_content_json(jsonPath, content_json);
         if (error == NO_ERROR)
         {
-            load_content_json(content_path, content_json, true, settings);
+            error = load_content_json(content_path, content_json, true, settings);
         }
     }
 
@@ -196,6 +196,11 @@ error_t save_content_json(const char *json_path, contentJson_t *content_json)
     char *jsonPathTmp = custom_asprintf("%s.tmp", json_path);
     error_t error = NO_ERROR;
     cJSON *contentJson = cJSON_CreateObject();
+    if (contentJson == NULL)
+    {
+        osFreeMem(jsonPathTmp);
+        return ERROR_OUT_OF_MEMORY;
+    }
 
     cJSON_AddBoolToObject(contentJson, "live", content_json->live);
     cJSON_AddBoolToObject(contentJson, "nocloud", content_json->nocloud);
@@ -211,6 +216,12 @@ error_t save_content_json(const char *json_path, contentJson_t *content_json)
     cJSON_AddNumberToObject(contentJson, "_version", CONTENT_JSON_VERSION);
 
     char *jsonRaw = cJSON_Print(contentJson);
+    if (jsonRaw == NULL)
+    {
+        cJSON_Delete(contentJson);
+        osFreeMem(jsonPathTmp);
+        return ERROR_OUT_OF_MEMORY;
+    }
 
     FsFile *file = fsOpenFile(jsonPathTmp, FS_FILE_MODE_WRITE);
     if (file != NULL)

@@ -2501,15 +2501,27 @@ error_t handleApiTonieboxJson(HttpConnection *connection, const char_t *uri, con
     }
     size_t sizeRead;
     char *data = osAllocMem(fileSize);
+    if (data == NULL && fileSize > 0)
+    {
+        TRACE_ERROR("Failed to allocate %" PRIuSIZE " bytes for tonieboxes JSON\r\n", fileSize);
+        fsCloseFile(fsFile);
+        httpWriteResponseString(connection, "Out of memory", false);
+        return ERROR_OUT_OF_MEMORY;
+    }
     size_t pos = 0;
 
-    while (pos < fileSize)
+    while (data != NULL && pos < fileSize)
     {
-        fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+        error_t read_err = fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+        if (read_err != NO_ERROR || sizeRead == 0)
+        {
+            TRACE_ERROR("Failed to read tonieboxes JSON at offset %" PRIuSIZE "\r\n", pos);
+            break;
+        }
         pos += sizeRead;
     }
     fsCloseFile(fsFile);
-    cJSON *inputJson = cJSON_ParseWithLengthOpts(data, fileSize, 0, 0);
+    cJSON *inputJson = (data && pos == fileSize) ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
     osFreeMem(data);
 
     /* Create a cJSON array to hold the output */

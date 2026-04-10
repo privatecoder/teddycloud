@@ -76,7 +76,7 @@ void cache_stats(cache_stats_t *stats)
         {
             stats->exists_entries++;
         }
-        if (fsFileExists(pos->file_path))
+        if (pos->file_path && fsFileExists(pos->file_path))
         {
             stats->total_files++;
             uint32_t size = 0;
@@ -134,6 +134,10 @@ void cache_entry_add(cache_entry_t *entry)
             if (!osStrcmp(entry->original_url, next->original_url))
             {
                 TRACE_DEBUG("Already added: %08X\r\n", entry->hash);
+                osFreeMem((void *)entry->original_url);
+                osFreeMem((void *)entry->file_path);
+                osFreeMem((void *)entry->cached_url);
+                osFreeMem(entry);
                 return;
             }
             TRACE_DEBUG("Inserting (duplicate short hash) entry with hash: %08X before entry with hash: %08X\r\n", entry->hash, next->hash);
@@ -187,6 +191,12 @@ cache_entry_t *cache_add(const char *url)
         {
             *query_param = '\0';
         }
+    }
+
+    if (extension == NULL)
+    {
+        TRACE_ERROR("Failed to allocate extension string\r\n");
+        return NULL;
     }
 
     cache_entry_t *entry = osAllocMem(sizeof(cache_entry_t));

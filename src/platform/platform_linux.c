@@ -260,9 +260,19 @@ error_t socketReceive(Socket *socket, void *data_in,
     if (!buff)
     {
         buff = osAllocMem(sizeof(socket_buffer_t));
+        if (buff == NULL)
+        {
+            return ERROR_OUT_OF_MEMORY;
+        }
         buff->buffer_used = 0;
         buff->buffer_size = size;
         buff->buffer = osAllocMem(buff->buffer_size);
+        if (buff->buffer == NULL)
+        {
+            osFreeMem(buff);
+            socket->interface = NULL;
+            return ERROR_OUT_OF_MEMORY;
+        }
         buff->buffer[buff->buffer_size - 1] = '\0';
         socket->interface = (NetInterface *)buff;
     }

@@ -193,6 +193,10 @@ error_t fsCreateDirEx(const char_t *path, bool_t recursive)
     if (recursive)
     {
         char_t *path_copy = strdup(path);
+        if (path_copy == NULL)
+        {
+            return ERROR_OUT_OF_MEMORY;
+        }
         size_t path_len = strlen(path_copy);
         if (path_len == 0)
         {
@@ -231,7 +235,12 @@ error_t fsRemoveFilename(char *dir)
     {
         return ERROR_INVALID_PARAMETER;
     }
-    if (dir[osStrlen(dir) - 1] == PATH_SEPARATOR)
+    size_t dir_len = osStrlen(dir);
+    if (dir_len == 0)
+    {
+        return ERROR_INVALID_PARAMETER;
+    }
+    if (dir[dir_len - 1] == PATH_SEPARATOR)
     {
         return NO_ERROR;
     }

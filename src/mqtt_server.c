@@ -117,6 +117,13 @@ void mqtt_server_init() {
     // Load certificates once
     char *cert_path = osAllocMem(256);
     char *key_path = osAllocMem(256);
+    if (cert_path == NULL || key_path == NULL)
+    {
+        TRACE_ERROR("Failed to allocate MQTT server cert path buffers\r\n");
+        osFreeMem(cert_path);
+        osFreeMem(key_path);
+        return;
+    }
 
     settings_resolve_dir(&cert_path, settings->mqtt_server.cert_crt, settings->internal.basedirfull);
     settings_resolve_dir(&key_path, settings->mqtt_server.cert_key, settings->internal.basedirfull);
@@ -228,9 +235,20 @@ void mqtt_server_task()
                         uint8_t flags = cmd_raw & 0x0F;
                         uint8_t qos = (flags >> 1) & 0x03;
                         size_t p = pos;
+                        size_t packet_end = pos + remaining_len;
 
+                        if (p + 2 > packet_end)
+                        {
+                            TRACE_WARNING("PUBLISH: packet too short for topic length\r\n");
+                            break;
+                        }
                         size_t topic_len = (pkt[p] << 8) | pkt[p + 1];
                         p += 2;
+                        if (p + topic_len > packet_end)
+                        {
+                            TRACE_WARNING("PUBLISH: topic extends past packet (topic_len=%" PRIuSIZE ")\r\n", topic_len);
+                            break;
+                        }
                         char topic[256];
                         size_t copy_len = topic_len < sizeof(topic) - 1 ? topic_len : sizeof(topic) - 1;
                         memcpy(topic, &pkt[p], copy_len);
@@ -240,11 +258,21 @@ void mqtt_server_task()
                         uint16_t packet_id = 0;
                         if (qos > 0)
                         {
+                            if (p + 2 > packet_end)
+                            {
+                                TRACE_WARNING("PUBLISH: packet too short for packet ID\r\n");
+                                break;
+                            }
                             packet_id = (pkt[p] << 8) | pkt[p + 1];
                             p += 2;
                         }
 
-                        size_t payload_len = remaining_len - (p - pos);
+                        if (p > packet_end)
+                        {
+                            TRACE_WARNING("PUBLISH: cursor past packet end\r\n");
+                            break;
+                        }
+                        size_t payload_len = packet_end - p;
                         char payload[256];
                         copy_len = payload_len < sizeof(payload) - 1 ? payload_len : sizeof(payload) - 1;
                         memcpy(payload, &pkt[p], copy_len);
@@ -287,15 +315,26 @@ void mqtt_server_task()
                     {
                         TRACE_INFO("SUBSCRIBE received\r\n");
                         size_t p = pos;
+                        size_t packet_end = pos + remaining_len;
                         // Packet Identifier
+                        if (p + 2 > packet_end)
+                        {
+                            TRACE_WARNING("SUBSCRIBE: packet too short for packet ID\r\n");
+                            break;
+                        }
                         uint16_t packet_id = (pkt[p] << 8) | pkt[p + 1];
                         p += 2;
 
                         // Payload: List of Topic Filter/QoS pairs
-                        while (p < packet_size)
+                        while (p + 2 < packet_end)
                         {
                             size_t topic_len = (pkt[p] << 8) | pkt[p + 1];
                             p += 2;
+                            if (p + topic_len + 1 > packet_end)
+                            {
+                                TRACE_WARNING("SUBSCRIBE: topic extends past packet\r\n");
+                                break;
+                            }
                             char topic[256];
                             size_t copy_len = topic_len < sizeof(topic) - 1 ? topic_len : sizeof(topic) - 1;
                             memcpy(topic, &pkt[p], copy_len);
