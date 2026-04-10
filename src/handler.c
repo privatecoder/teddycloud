@@ -321,30 +321,33 @@ error_t cbrCloudHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, c
     return send_err;
 }
 
-bool fillCbrBodyCache(cbr_ctx_t *ctx, HttpClientContext *httpClientContext, const char *payload, size_t length)
+// Returns: NO_ERROR = still buffering, ERROR_END_OF_STREAM = buffer complete, other = failure
+error_t fillCbrBodyCache(cbr_ctx_t *ctx, HttpClientContext *httpClientContext, const char *payload, size_t length)
 {
     if (ctx->bufferPos == 0)
     {
-        ctx->bufferLen = httpClientContext->bodyLen; // ctx->connection->response.contentLength;
+        ctx->bufferLen = httpClientContext->bodyLen;
         if (ctx->bufferLen == 0)
         {
-            return true;
+            TRACE_ERROR(">> fillCbrBodyCache: body length is 0\r\n");
+            return ERROR_INVALID_LENGTH;
         }
         ctx->buffer = osAllocMem(ctx->bufferLen);
         if (ctx->buffer == NULL)
         {
             TRACE_ERROR(">> fillCbrBodyCache: allocation failed for %" PRIuSIZE " bytes\r\n", ctx->bufferLen);
             ctx->bufferLen = 0;
-            return true;
+            return ERROR_OUT_OF_MEMORY;
         }
     }
     if (ctx->buffer == NULL || ctx->bufferPos + length > ctx->bufferLen)
     {
-        return true;
+        TRACE_ERROR(">> fillCbrBodyCache: buffer overflow (pos=%" PRIuSIZE " + len=%" PRIuSIZE " > max=%" PRIuSIZE ")\r\n", ctx->bufferPos, length, ctx->bufferLen);
+        return ERROR_BUFFER_OVERFLOW;
     }
     osMemcpy(&ctx->buffer[ctx->bufferPos], payload, length);
     ctx->bufferPos += length;
-    return (ctx->bufferPos == ctx->bufferLen);
+    return (ctx->bufferPos == ctx->bufferLen) ? ERROR_END_OF_STREAM : NO_ERROR;
 }
 
 error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
@@ -450,9 +453,18 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
     case V3_FRESHNESS_CHECK:
     {
         bool finished = false;
-        if (length > 0 && fillCbrBodyCache(ctx, httpClientContext, payload, length))
+        error_t cache_err = NO_ERROR;
+        if (length > 0)
         {
-            finished = true;
+            cache_err = fillCbrBodyCache(ctx, httpClientContext, payload, length);
+            if (cache_err == ERROR_END_OF_STREAM)
+            {
+                finished = true;
+            }
+            else if (cache_err != NO_ERROR)
+            {
+                return cache_err;
+            }
         }
         if (error == ERROR_END_OF_STREAM)
         {
@@ -579,13 +591,18 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
         break;
     }
     case V1_FRESHNESS_CHECK:
-        if (length > 0 && fillCbrBodyCache(ctx, httpClientContext, payload, length))
+    {
+        error_t cache_err = NO_ERROR;
+        if (length > 0)
         {
-            if (ctx->buffer == NULL || ctx->bufferLen == 0)
+            cache_err = fillCbrBodyCache(ctx, httpClientContext, payload, length);
+            if (cache_err != NO_ERROR && cache_err != ERROR_END_OF_STREAM)
             {
-                TRACE_ERROR(">> V1 freshness check: buffer not available\r\n");
-                break;
+                return cache_err;
             }
+        }
+        if (cache_err == ERROR_END_OF_STREAM)
+        {
             TonieFreshnessCheckResponse *freshResp = (TonieFreshnessCheckResponse *)ctx->customData;
             TonieFreshnessCheckResponse *freshRespCloud = tonie_freshness_check_response__unpack(NULL, ctx->bufferLen, (const uint8_t *)ctx->buffer);
 
@@ -694,6 +711,7 @@ error_t cbrCloudBodyPassthrough(void *src_ctx, HttpClientContext *cloud_ctx, con
             ctx->total_sent += length;
         }
         break;
+    }
     default:
         return cbrGenericBodyPassthrough(src_ctx, cloud_ctx, payload, length, error);
     }
