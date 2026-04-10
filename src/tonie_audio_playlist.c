@@ -41,16 +41,27 @@ error_t tap_load(char *filename, tonie_audio_playlist_t *tap)
 
     size_t sizeRead;
     char *data = osAllocMem(fileSize);
+    if (data == NULL && fileSize > 0)
+    {
+        TRACE_ERROR("Failed to allocate %" PRIuSIZE " bytes for TAP file\r\n", fileSize);
+        fsCloseFile(fsFile);
+        return ERROR_OUT_OF_MEMORY;
+    }
     size_t pos = 0;
 
-    while (pos < fileSize)
+    while (data != NULL && pos < fileSize)
     {
-        fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+        error_t read_err = fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+        if (read_err != NO_ERROR || sizeRead == 0)
+        {
+            TRACE_ERROR("Failed to read TAP file at offset %" PRIuSIZE "\r\n", pos);
+            break;
+        }
         pos += sizeRead;
     }
     fsCloseFile(fsFile);
 
-    cJSON *tapJson = cJSON_ParseWithLengthOpts(data, fileSize, 0, 0);
+    cJSON *tapJson = (data && pos == fileSize) ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
     osFreeMem(data);
     if (tapJson == NULL)
     {
@@ -75,15 +86,23 @@ error_t tap_load(char *filename, tonie_audio_playlist_t *tap)
             if (tap->filesCount > 0)
             {
                 tap->files = osAllocMem(tap->filesCount * sizeof(tap_file_t));
-                uint8_t i = 0;
-                cJSON *fileJson;
-                cJSON_ArrayForEach(fileJson, filesJson)
+                if (tap->files == NULL)
                 {
-                    tap->files[i].filepath = jsonGetString(fileJson, "filepath");
-                    tap->files[i]._filepath_resolved = strdup(tap->files[i].filepath);
-                    resolveSpecialPathPrefix(&tap->files[i]._filepath_resolved, get_settings());
-                    tap->files[i].name = jsonGetString(fileJson, "name");
-                    i++;
+                    TRACE_ERROR("Failed to allocate TAP files array (%" PRIuSIZE " entries)\r\n", tap->filesCount);
+                    tap->filesCount = 0;
+                }
+                else
+                {
+                    uint8_t i = 0;
+                    cJSON *fileJson;
+                    cJSON_ArrayForEach(fileJson, filesJson)
+                    {
+                        tap->files[i].filepath = jsonGetString(fileJson, "filepath");
+                        tap->files[i]._filepath_resolved = strdup(tap->files[i].filepath);
+                        resolveSpecialPathPrefix(&tap->files[i]._filepath_resolved, get_settings());
+                        tap->files[i].name = jsonGetString(fileJson, "name");
+                        i++;
+                    }
                 }
             }
         }

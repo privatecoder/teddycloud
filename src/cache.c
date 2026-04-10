@@ -190,11 +190,29 @@ cache_entry_t *cache_add(const char *url)
     }
 
     cache_entry_t *entry = osAllocMem(sizeof(cache_entry_t));
+    if (entry == NULL)
+    {
+        TRACE_ERROR("Failed to allocate cache entry\r\n");
+        osFreeMem(extension);
+        return NULL;
+    }
 
     entry->hash = ((uint32_t)sha256_calc[0] << 24) | ((uint32_t)sha256_calc[1] << 16) | ((uint32_t)sha256_calc[2] << 8) | (sha256_calc[3] << 0);
     entry->original_url = strdup(url);
     entry->file_path = custom_asprintf("%s%c%s.%s", cachePath, PATH_SEPARATOR, sha256_calc_str, extension);
     entry->cached_url = custom_asprintf("/cache/%s.%s", sha256_calc_str, extension);
+
+    if (entry->original_url == NULL || entry->file_path == NULL || entry->cached_url == NULL)
+    {
+        TRACE_ERROR("Failed to allocate cache entry strings\r\n");
+        osFreeMem((void *)entry->original_url);
+        osFreeMem((void *)entry->file_path);
+        osFreeMem((void *)entry->cached_url);
+        osFreeMem(entry);
+        osFreeMem(extension);
+        return NULL;
+    }
+
     entry->exists = fsFileExists(entry->file_path);
 
     cache_entry_add(entry);

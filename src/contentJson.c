@@ -46,16 +46,28 @@ error_t load_content_json(const char *content_path, contentJson_t *content_json,
         {
             size_t sizeRead;
             char *data = osAllocMem(fileSize);
+            if (data == NULL && fileSize > 0)
+            {
+                TRACE_ERROR("Failed to allocate %" PRIuSIZE " bytes for content JSON\r\n", fileSize);
+                fsCloseFile(fsFile);
+                osFreeMem(jsonPath);
+                return ERROR_OUT_OF_MEMORY;
+            }
             size_t pos = 0;
 
-            while (pos < fileSize)
+            while (data != NULL && pos < fileSize)
             {
-                fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+                error_t read_err = fsReadFile(fsFile, &data[pos], fileSize - pos, &sizeRead);
+                if (read_err != NO_ERROR || sizeRead == 0)
+                {
+                    TRACE_ERROR("Failed to read content JSON at offset %" PRIuSIZE "\r\n", pos);
+                    break;
+                }
                 pos += sizeRead;
             }
             fsCloseFile(fsFile);
 
-            cJSON *contentJson = cJSON_ParseWithLengthOpts(data, fileSize, 0, 0);
+            cJSON *contentJson = (data && pos == fileSize) ? cJSON_ParseWithLengthOpts(data, fileSize, 0, 0) : NULL;
             osFreeMem(data);
             if (contentJson == NULL)
             {

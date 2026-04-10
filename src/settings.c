@@ -366,8 +366,8 @@ void overlay_settings_init_opt(setting_item_t *opt, setting_item_t *opt_src)
         case TYPE_U64_ARRAY:
             if (opt_src->size > 0)
             {
-                *((uint64_t **)opt->ptr) = osAllocMem(sizeof(uint64_t *) * opt_src->size);
-                osMemcpy(*((uint64_t **)opt->ptr), *((uint64_t **)opt_src->ptr), sizeof(uint64_t *) * opt_src->size);
+                *((uint64_t **)opt->ptr) = osAllocMem(sizeof(uint64_t) * opt_src->size);
+                osMemcpy(*((uint64_t **)opt->ptr), *((uint64_t **)opt_src->ptr), sizeof(uint64_t) * opt_src->size);
             }
             break;
         default:
@@ -706,7 +706,7 @@ static void settings_init_opt(setting_item_t *opt)
         TRACE_DEBUG("  %s = size(%" PRIuSIZE ")\r\n", opt->option_name, opt->size);
         if (opt->size > 0)
         {
-            *((uint64_t **)opt->ptr) = osAllocMem(sizeof(uint64_t *) * opt->size);
+            *((uint64_t **)opt->ptr) = osAllocMem(sizeof(uint64_t) * opt->size);
         }
         break;
     default:
