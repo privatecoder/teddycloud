@@ -154,6 +154,146 @@ int_t cloud_request(const char *server, int port, bool https, const char *uri, c
 {
     return web_request(server, port, https, uri, queryString, method, body, bodyLen, hash, cbr, true, true, NULL);
 }
+
+static void build_relative_redirect_path(const char *base_uri, const char *location, char *uri_path, char *query_str, size_t buf_size)
+{
+    const char *location_query = strchr(location, '?');
+    size_t location_path_len = location_query ? (size_t)(location_query - location) : strlen(location);
+
+    if (location_query)
+    {
+        strncpy(query_str, location_query + 1, buf_size - 1);
+        query_str[buf_size - 1] = '\0';
+    }
+    else
+    {
+        query_str[0] = '\0';
+    }
+
+    if (location_path_len == 0)
+    {
+        const char *base_query = strchr(base_uri, '?');
+        size_t base_path_len = base_query ? (size_t)(base_query - base_uri) : strlen(base_uri);
+        if (base_path_len >= buf_size)
+        {
+            base_path_len = buf_size - 1;
+        }
+        strncpy(uri_path, base_uri, base_path_len);
+        uri_path[base_path_len] = '\0';
+        return;
+    }
+
+    if (location[0] == '/')
+    {
+        if (location_path_len >= buf_size)
+        {
+            location_path_len = buf_size - 1;
+        }
+        strncpy(uri_path, location, location_path_len);
+        uri_path[location_path_len] = '\0';
+        return;
+    }
+
+    char base_path[256];
+    strncpy(base_path, base_uri, sizeof(base_path) - 1);
+    base_path[sizeof(base_path) - 1] = '\0';
+
+    char *base_query = strchr(base_path, '?');
+    if (base_query)
+    {
+        *base_query = '\0';
+    }
+
+    char *last_slash = strrchr(base_path, '/');
+    if (last_slash != NULL)
+    {
+        last_slash[1] = '\0';
+    }
+    else
+    {
+        strncpy(base_path, "/", sizeof(base_path) - 1);
+        base_path[sizeof(base_path) - 1] = '\0';
+    }
+
+    size_t base_len = strlen(base_path);
+    if (base_len >= buf_size)
+    {
+        base_len = buf_size - 1;
+    }
+    memcpy(uri_path, base_path, base_len);
+    size_t copy_len = location_path_len;
+    if (base_len + copy_len >= buf_size)
+    {
+        copy_len = buf_size - base_len - 1;
+    }
+    memcpy(uri_path + base_len, location, copy_len);
+    uri_path[base_len + copy_len] = '\0';
+
+    char normalized[256];
+    size_t normalized_len = 0;
+    size_t pos = 0;
+
+    while (uri_path[pos] != '\0' && normalized_len < sizeof(normalized) - 1)
+    {
+        if (uri_path[pos] == '/')
+        {
+            normalized[normalized_len++] = uri_path[pos++];
+            continue;
+        }
+
+        size_t segment_start = pos;
+        while (uri_path[pos] != '\0' && uri_path[pos] != '/')
+        {
+            pos++;
+        }
+        size_t segment_len = pos - segment_start;
+
+        if (segment_len == 1 && strncmp(&uri_path[segment_start], ".", 1) == 0)
+        {
+            continue;
+        }
+
+        if (segment_len == 2 && strncmp(&uri_path[segment_start], "..", 2) == 0)
+        {
+            if (normalized_len > 1)
+            {
+                normalized_len--;
+                while (normalized_len > 0 && normalized[normalized_len - 1] != '/')
+                {
+                    normalized_len--;
+                }
+            }
+            continue;
+        }
+
+        if (normalized_len > 0 && normalized[normalized_len - 1] != '/')
+        {
+            normalized[normalized_len++] = '/';
+        }
+
+        if (normalized_len + segment_len >= sizeof(normalized))
+        {
+            segment_len = sizeof(normalized) - normalized_len - 1;
+        }
+        memcpy(&normalized[normalized_len], &uri_path[segment_start], segment_len);
+        normalized_len += segment_len;
+    }
+
+    if (normalized_len == 0)
+    {
+        normalized[normalized_len++] = '/';
+    }
+    normalized[normalized_len] = '\0';
+
+    size_t normalized_copy_len = strlen(normalized);
+    if (normalized_copy_len >= buf_size)
+    {
+        normalized_copy_len = buf_size - 1;
+    }
+    memcpy(uri_path, normalized, normalized_copy_len);
+    uri_path[normalized_copy_len] = '\0';
+}
+
 static error_t web_request_impl(const char *server, int port, bool https, const char *uri, const char *queryString, const char *method, const uint8_t *body, size_t bodyLen, const uint8_t *hash, req_cbr_t *cbr, bool isCloud, bool printTextData, uint32_t *statusCode, int redirect_depth)
 {
     cbr_ctx_t *cbr_ctx = cbr ? (cbr_ctx_t *)cbr->ctx : NULL;
@@ -425,23 +565,7 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
                         uri_base[sizeof(uri_base) - 1] = '\0';
                         redirect_port = port;
                         redirect_https = https;
-
-                        const char *qmark = strchr(location, '?');
-                        if (qmark)
-                        {
-                            size_t path_len = qmark - location;
-                            if (path_len >= sizeof(uri_path)) path_len = sizeof(uri_path) - 1;
-                            strncpy(uri_path, location, path_len);
-                            uri_path[path_len] = '\0';
-                            strncpy(query_str, qmark + 1, sizeof(query_str) - 1);
-                            query_str[sizeof(query_str) - 1] = '\0';
-                        }
-                        else
-                        {
-                            strncpy(uri_path, location, sizeof(uri_path) - 1);
-                            uri_path[sizeof(uri_path) - 1] = '\0';
-                            query_str[0] = '\0';
-                        }
+                        build_relative_redirect_path(uri, location, uri_path, query_str, sizeof(uri_path));
                     }
 
                     TRACE_DEBUG("URI Base: %s\r\n", uri_base);
@@ -523,6 +647,12 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
 
             size_t maxSize = 4096;
             uint8_t *buffer = osAllocMem(maxSize + 1);
+            if (buffer == NULL)
+            {
+                TRACE_ERROR("Failed to allocate response buffer (%" PRIuSIZE " bytes)\r\n", maxSize + 1);
+                error = ERROR_OUT_OF_MEMORY;
+                break;
+            }
             // Receive HTTP response body
             while (!error)
             {
