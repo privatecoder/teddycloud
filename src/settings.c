@@ -9,6 +9,9 @@
 #include "settings.h"
 #include "mutex_manager.h"
 #include "tls_adapter.h"
+#include "pem_common.h"
+#include "pkix/x509_cert_parse.h"
+#include "x509_common.h"
 
 #include "fs_port.h"
 #include "fs_ext.h"
@@ -26,6 +29,12 @@ static error_t settings_save_ovl(bool overlay);
 static error_t settings_load_ovl(bool overlay);
 static setting_item_t *settings_get_by_name_id(const char *item, uint8_t settingsId);
 static char *settings_sanitize_box_id(const char *input_id);
+
+static bool x509_string_equals(const X509String *value, const char *literal)
+{
+    size_t literal_len = osStrlen(literal);
+    return value != NULL && value->value != NULL && value->length == literal_len && osMemcmp(value->value, literal, literal_len) == 0;
+}
 
 /* macros */
 #define ERR_RETURN(command)    \
@@ -1734,27 +1743,57 @@ error_t settings_load_certs_id(uint8_t settingsId)
 bool test_boxine_ca(uint8_t settingsId)
 {
     const char *client_ca_crt = settings_get_string_id("internal.client.ca", settingsId);
+    PemHeader pem_header;
+    size_t pem_consumed = 0;
+    size_t der_length = 0;
+    uint8_t *der_data = NULL;
+    X509CertInfo cert_info;
+    error_t error;
 
-    size_t boxine_ca_length = 2008;
-    size_t tb2_ca_length = 898;
-    size_t ca_length = osStrlen(client_ca_crt);
-    if (ca_length > 0)
+    if (client_ca_crt == NULL || osStrlen(client_ca_crt) == 0)
     {
-        if (ca_length != boxine_ca_length && ca_length != tb2_ca_length)
-        {
-            TRACE_WARNING("Client CA length mismatch %" PRIuSIZE " expected %" PRIuSIZE " or %" PRIuSIZE "\r\n", ca_length, boxine_ca_length, tb2_ca_length);
-            return false;
-        }
-        else
-        {
-            if (osStrstr(client_ca_crt, "MC0JveGluZSBHbW") == NULL   // Boxine GmbH
-                || osStrstr(client_ca_crt, "DAlCb3hpbmUgQ") == NULL) // Boxine
-            {
-                TRACE_WARNING("Client CA does not match Boxine\r\n");
-                return false;
-            }
-        }
-        return true;
+        return false;
     }
-    return false;
+
+    osMemset(&pem_header, 0, sizeof(pem_header));
+    error = pemDecodeFile(client_ca_crt, osStrlen(client_ca_crt), "CERTIFICATE", NULL, &der_length, &pem_header, &pem_consumed);
+    if (error != NO_ERROR || der_length == 0)
+    {
+        TRACE_WARNING("Client CA could not be decoded as a PEM certificate\r\n");
+        return false;
+    }
+
+    der_data = osAllocMem(der_length);
+    if (der_data == NULL)
+    {
+        TRACE_WARNING("Out of memory while validating client CA\r\n");
+        return false;
+    }
+
+    osMemset(&pem_header, 0, sizeof(pem_header));
+    error = pemDecodeFile(client_ca_crt, osStrlen(client_ca_crt), "CERTIFICATE", der_data, &der_length, &pem_header, &pem_consumed);
+    if (error != NO_ERROR)
+    {
+        osFreeMem(der_data);
+        TRACE_WARNING("Client CA could not be decoded as a PEM certificate\r\n");
+        return false;
+    }
+
+    osMemset(&cert_info, 0, sizeof(cert_info));
+    error = x509ParseCertificate(der_data, der_length, &cert_info);
+    osFreeMem(der_data);
+    if (error != NO_ERROR)
+    {
+        TRACE_WARNING("Client CA could not be parsed as an X.509 certificate\r\n");
+        return false;
+    }
+
+    if (!x509_string_equals(&cert_info.tbsCert.subject.commonName, "Boxine CA") ||
+        !x509_string_equals(&cert_info.tbsCert.subject.organizationName, "Boxine GmbH"))
+    {
+        TRACE_WARNING("Client CA does not match Boxine\r\n");
+        return false;
+    }
+
+    return true;
 }
