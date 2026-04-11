@@ -63,44 +63,18 @@ build_os:="$(OS)"
 CFLAGS_VERSION:=-DBUILD_GIT_IS_DIRTY=${build_gitDirty} -DBUILD_GIT_DATETIME=\"${build_gitDateTime}\" -DBUILD_RAW_DATETIME=\"${build_rawDateTime}\" -DBUILD_GIT_SHORT_SHA=\"${build_gitShortSha}\" -DBUILD_GIT_SHA=\"${build_gitSha}\" -DBUILD_GIT_TAG=\"${build_gitTag}\"
 CFLAGS_VERSION+=-DBUILD_PLATFORM=\"${build_platform}\" -DBUILD_OS=\"${build_os}\" -DBUILD_OS_ID=\"${build_os_id}\" -DBUILD_ARCH=\"${build_arch}\" -DBUILD_ARCH_BITS=\"${build_arch_bits}\"
 
-ifeq ($(build_os_id),"alpine")
-ifeq ($(build_arch_bits),32)
-CFLAGS_VERSION+=-DBUILD_PRIuTIME_LLU=1
-endif
-endif
-
 ifeq ($(build_os_id),"ubuntu")
 ifeq ($(build_arch_bits),32)
 CFLAGS_VERSION+=-DBUILD_PRIuTIME_LLU=1
 endif
 endif
 
-ifeq ($(build_os_id),"debian")
-ifeq ($(build_arch_bits),32)
-ifeq ($(build_arch),"armv7l")
-CFLAGS_VERSION+=-DBUILD_PRIuTIME_LLU=1
-endif
-endif
-endif
-
 ifeq ($(build_os_id),"ubuntu")
 ifeq ($(build_arch),"aarch64")
 # Workaround AddressSanitizer: CHECK failed: sanitizer_allocator_primary64.h:131 "((kSpaceBeg)) == ((address_range.Init(TotalSpaceSize, PrimaryAllocatorName, kSpaceBeg)))" (0x500000000000, 0xfffffffffffffff4) (tid=8)
-# LLM: Ubuntu's Linux kernel version 6.5.0-25 increased the number of random bits used for ASLR from 28 to 32 on 64-bit systems7.
-# The AddressSanitizer library hasn't been updated to accommodate this change in the ASLR configuration7.
+# Ubuntu's Linux kernel version 6.5.0-25 increased the number of random bits used for ASLR from 28 to 32 on 64-bit systems.
+# The AddressSanitizer library hasn't been updated to accommodate this change in the ASLR configuration.
 # This mismatch causes a CHECK failure in the sanitizer_allocator_primary64.h file, specifically at line 131.
-# But this doesn't work!
-CFLAGS_VERSION+=-DSANITIZER_CAN_USE_ALLOCATOR64=0
-endif
-endif
-
-ifeq ($(build_os_id),"debian")
-ifeq ($(build_arch),"aarch64")
-# Workaround AddressSanitizer: CHECK failed: sanitizer_allocator_primary64.h:131 "((kSpaceBeg)) == ((address_range.Init(TotalSpaceSize, PrimaryAllocatorName, kSpaceBeg)))" (0x500000000000, 0xfffffffffffffff4) (tid=8)
-# LLM: Ubuntu's Linux kernel version 6.5.0-25 increased the number of random bits used for ASLR from 28 to 32 on 64-bit systems7.
-# The AddressSanitizer library hasn't been updated to accommodate this change in the ASLR configuration7.
-# This mismatch causes a CHECK failure in the sanitizer_allocator_primary64.h file, specifically at line 131.
-# But this doesn't work!
 CFLAGS_VERSION+=-DSANITIZER_CAN_USE_ALLOCATOR64=0
 endif
 endif
@@ -513,20 +487,15 @@ else
 .PHONY: check_dependencies
 check_dependencies:
 	@which protoc-c >/dev/null || ($(ECHO) '${RED}Error:${NC} protoc-c not found. Install it using:' && \
-	$(ECHO) '  ${CYAN}Ubuntu/Debian:${NC} sudo apt-get install protobuf-c-compiler' && \
-	$(ECHO) '  ${CYAN}Alpine:${NC} apk add protobuf' && exit 1)
+	$(ECHO) '  ${CYAN}sudo apt-get install protobuf-c-compiler${NC}' && exit 1)
 	@which gcc >/dev/null || ($(ECHO) '${RED}Error:${NC} gcc not found. Install it using:' && \
-	$(ECHO) '  ${CYAN}Ubuntu/Debian:${NC} sudo apt-get install gcc' && \
-	$(ECHO) '  ${CYAN}Alpine:${NC} apk add gcc' && exit 1)
+	$(ECHO) '  ${CYAN}sudo apt-get install gcc${NC}' && exit 1)
 	@which openssl >/dev/null || ($(ECHO) '${YELLOW}Warning:${NC} openssl not found, required for generating certificates. Install it using:' && \
-	$(ECHO) '  ${CYAN}Ubuntu/Debian:${NC} sudo apt-get install openssl' && \
-	$(ECHO) '  ${CYAN}Alpine:${NC} apk add openssl')
+	$(ECHO) '  ${CYAN}sudo apt-get install openssl${NC}')
 	@which faketime >/dev/null || ($(ECHO) '${YELLOW}Warning:${NC} faketime not found, required for generating certificates. Install it using:' && \
-	$(ECHO) '  ${CYAN}Ubuntu/Debian:${NC} sudo apt-get install faketime' && \
-	$(ECHO) '  ${CYAN}Alpine:${NC} apk add faketime')
+	$(ECHO) '  ${CYAN}sudo apt-get install faketime${NC}')
 	@which npm >/dev/null || ($(ECHO) '${YELLOW}Warning:${NC} npm not found, required for building the teddycloud_web. Install it using:' && \
-	$(ECHO) '  ${CYAN}Ubuntu/Debian:${NC} sudo apt-get install npm' && \
-	$(ECHO) '  ${CYAN}Alpine:${NC} apk add npm')
+	$(ECHO) '  ${CYAN}sudo apt-get install npm${NC}')
 endif
 
 .PRECIOUS: %/

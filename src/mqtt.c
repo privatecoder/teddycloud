@@ -533,7 +533,7 @@ void mqtt_get_settings(mqtt_ctx_t *mqtt_ctx)
 
 void mqtt_thread(void *arg)
 {
-    (void)arg; // unused but Alpines compiler complains if arg is missing.
+    (void)arg;
     uint32_t errors = 0;
     uint32_t retry_delay_ms = 5000;
     const uint32_t RETRY_DELAY_INIT_MS = 5000;
