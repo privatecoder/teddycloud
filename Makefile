@@ -106,9 +106,9 @@ endif
 endif
 
 build_gitTagPrefix:=$(firstword $(subst _, ,$(build_gitTag)))
-ifeq ($(build_gitTagPrefix),tc)
+ifeq ($(build_gitTagPrefix),pctc)
 	build_version:=$(subst ${build_gitTagPrefix}_,,${build_gitTag})
-	CFLAGS_VERSION+=-DBUILD_VERSION=\"${build_version}\" 
+	CFLAGS_VERSION+=-DBUILD_VERSION=\"${build_version}\"
 endif
 
 WEB_GIT_DIRTY ?= 1
