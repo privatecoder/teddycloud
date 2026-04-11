@@ -1,15 +1,9 @@
 name: Docker Publish
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - master
-      - develop
-      - main
     tags:
-      - "tc_v*"
-      - "tc_nightly*"
+      - "pctc_v*"
 
 permissions:
   contents: read
