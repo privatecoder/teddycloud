@@ -110,14 +110,14 @@ error_t tonies_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, const c
 
 error_t tonies_update()
 {
-    TRACE_INFO("Updating tonies.json from api.revvox.de...\r\n");
+    TRACE_INFO("Updating tonies.json from raw.githubusercontent.com...\r\n");
     cbr_ctx_t ctx;
     client_ctx_t client_ctx = {
         .settings = get_settings(),
     };
 
-    const char *uri_base = "api.revvox.de";
-    const char *uri_path = "/tonies.json?source=teddyCloud&version=" BUILD_GIT_SHORT_SHA;
+    const char *uri_base = "raw.githubusercontent.com";
+    const char *uri_path = "/privatecoder/tonies-json/release/tonies.json";
     const char *queryString = NULL;
     fillBaseCtx(NULL, uri_path, queryString, V1_LOG, &ctx, &client_ctx);
     req_cbr_t cbr = {
@@ -135,7 +135,7 @@ error_t tonies_update()
     {
         fsDeleteFile(tonies_json_path);
         fsRenameFile(tonies_json_tmp_path, tonies_json_path);
-        TRACE_INFO("... success updating tonies.json from api.revvox.de, reloading\r\n");
+        TRACE_INFO("... success updating tonies.json from raw.githubusercontent.com, reloading\r\n");
         tonies_deinit();
         tonies_init();
     }
@@ -200,14 +200,14 @@ static error_t toniesV2_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx
 
 error_t toniesV2_update()
 {
-    TRACE_INFO("Updating toniesV2.json from api.revvox.de...\r\n");
+    TRACE_INFO("Updating toniesV2.json from raw.githubusercontent.com...\r\n");
     cbr_ctx_t ctx;
     client_ctx_t client_ctx = {
         .settings = get_settings(),
     };
 
-    const char *uri_base = "api.revvox.de";
-    const char *uri_path = "/toniesV2.json?source=teddyCloud&version=" BUILD_GIT_SHORT_SHA;
+    const char *uri_base = "raw.githubusercontent.com";
+    const char *uri_path = "/privatecoder/tonies-json/release/toniesV2.json";
     const char *queryString = NULL;
     fillBaseCtx(NULL, uri_path, queryString, V1_LOG, &ctx, &client_ctx);
     req_cbr_t cbr = {
@@ -225,7 +225,7 @@ error_t toniesV2_update()
     {
         fsDeleteFile(toniesV2_json_path);
         fsRenameFile(toniesV2_json_tmp_path, toniesV2_json_path);
-        TRACE_INFO("... success updating toniesV2.json from api.revvox.de, reloading\r\n");
+        TRACE_INFO("... success updating toniesV2.json from raw.githubusercontent.com, reloading\r\n");
         tonies_deinit();
         tonies_init();
     }
@@ -293,7 +293,7 @@ error_t tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, con
 }
 error_t tonieboxes_update()
 {
-    TRACE_INFO("Updating tonieboxes.json from api.revvox.de...\r\n");
+    TRACE_INFO("Updating tonieboxes.json from raw.githubusercontent.com...\r\n");
     cbr_ctx_t ctx;
     client_ctx_t client_ctx = {
         .settings = get_settings(),
@@ -302,8 +302,8 @@ error_t tonieboxes_update()
     char *target = custom_asprintf("%s%c%s", settings_get_string("internal.configdirfull"), PATH_SEPARATOR, TONIEBOX_JSON_FILE);
     char *target_tmp = custom_asprintf("%s.tmp", target);
 
-    const char *uri_base = "api.revvox.de";
-    const char *uri_path = "/tonieboxes.json?source=teddyCloud&version=" BUILD_GIT_SHORT_SHA;
+    const char *uri_base = "raw.githubusercontent.com";
+    const char *uri_path = "/privatecoder/tonies-json/release/tonieboxes.json";
     const char *queryString = NULL;
     fillBaseCtx(NULL, uri_path, queryString, V1_LOG, &ctx, &client_ctx);
     req_cbr_t cbr = {
@@ -321,7 +321,7 @@ error_t tonieboxes_update()
     {
         fsDeleteFile(target);
         fsRenameFile(target_tmp, target);
-        TRACE_INFO("... success updating tonieboxes.json from api.revvox.de, reloading\r\n");
+        TRACE_INFO("... success updating tonieboxes.json from raw.githubusercontent.com, reloading\r\n");
         tonies_deinit();
         tonies_init();
     }
