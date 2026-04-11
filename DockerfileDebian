@@ -9,8 +9,8 @@ RUN apt-get update \
 COPY . /buildenv
 WORKDIR /buildenv
 
-RUN curl -f https://raw.githubusercontent.com/toniebox-reverse-engineering/tonies-json/release/tonies.json -o /buildenv/contrib/config/tonies.json || true
-RUN curl -f https://raw.githubusercontent.com/toniebox-reverse-engineering/tonies-json/release/tonieboxes.json -o /buildenv/contrib/config/tonieboxes.json || true
+RUN curl -f https://raw.githubusercontent.com/privatecoder/tonies-json/release/tonies.json -o /buildenv/contrib/config/tonies.json || true
+RUN curl -f https://raw.githubusercontent.com/privatecoder/tonies-json/release/tonieboxes.json -o /buildenv/contrib/config/tonieboxes.json || true
 RUN make zip NO_SANITIZERS=${NO_SANITIZERS}
 
 FROM debian:latest

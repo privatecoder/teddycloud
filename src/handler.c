@@ -1360,6 +1360,9 @@ error_t cbrGenericResponsePassthrough(void *src_ctx, HttpClientContext *cloud_ct
     // This is fine: https://www.youtube.com/watch?v=0oBx7Jg4m-o
     const char *statusText = httpStatusCodeText(cloud_ctx->statusCode);
 
+    ctx->connection->response.keepAlive = FALSE;
+    ctx->connection->response.chunkedEncoding = FALSE;
+
     osSprintf(line, "HTTP/%d.%d %u %s\r\n", MSB(cloud_ctx->version), LSB(cloud_ctx->version), cloud_ctx->statusCode, statusText);
     error_t send_err = httpSend(ctx->connection, line, osStrlen(line), HTTP_FLAG_DELAY);
     ctx->status = PROX_STATUS_CONN;
@@ -1397,20 +1400,26 @@ error_t cbrGenericHeaderPassthrough(void *src_ctx, HttpClientContext *cloud_ctx,
 
     if (header)
     {
-        if (osStrcmp(header, "Access-Control-Allow-Origin") != 0)
+        if (osStrcmp(header, "Access-Control-Allow-Origin") == 0 ||
+            osStrcmp(header, "Transfer-Encoding") == 0 ||
+            osStrcmp(header, "Connection") == 0 ||
+            osStrcmp(header, "Keep-Alive") == 0 ||
+            osStrcmp(header, "Proxy-Connection") == 0 ||
+            osStrcmp(header, "Trailer") == 0 ||
+            osStrcmp(header, "Upgrade") == 0)
         {
-            TRACE_DEBUG(">> cbrGenericHeaderPassthrough: %s = %s\r\n", header, value);
-            osSprintf(line, "%s: %s\r\n", header, value);
+            send_line = false;
         }
         else
         {
-            send_line = false;
+            TRACE_DEBUG(">> cbrGenericHeaderPassthrough: %s = %s\r\n", header, value);
+            osSprintf(line, "%s: %s\r\n", header, value);
         }
     }
     else
     {
         TRACE_DEBUG(">> cbrGenericHeaderPassthrough: NULL\r\n");
-        osStrcpy(line, "\r\n");
+        osStrcpy(line, "Connection: close\r\n\r\n");
     }
 
     if (send_line)

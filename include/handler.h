@@ -69,6 +69,7 @@ typedef struct
     size_t bufferLen;
     uint32_t status;
     FsFile *file;
+    char *cache_path;
     tonie_info_t *tonieInfo;
     void *customData;
     size_t customDataLen;

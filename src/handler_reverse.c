@@ -62,8 +62,8 @@ typedef struct
 
 const reverse_target_t reverse_targets[] = {
     {"macvendor", "api.macvendors.com", "/", 443, true, true, true, 24, "text/plain"},
-    {"teddycloud_release", "api.github.com", "/repos/toniebox-reverse-engineering/teddycloud/releases/latest", 443, true, false, true, 24, "application/json"},
-    {"teddycloud_develop", "api.github.com", "/repos/toniebox-reverse-engineering/teddycloud/commits/develop", 443, true, false, true, 1, "application/json"},
+    {"teddycloud_release", "api.github.com", "/repos/privatecoder/teddycloud/releases/latest", 443, true, false, true, 24, "application/json"},
+    {"teddycloud_develop", "api.github.com", "/repos/privatecoder/teddycloud/commits/master", 443, true, false, true, 1, "application/json"},
     {NULL, NULL, NULL, 0, false, false, false, 0, NULL}};
 
 error_t cbrReverseBodyCache(void *src_ctx, HttpClientContext *cloud_ctx, const char *payload, size_t length, error_t error)
@@ -107,6 +107,15 @@ error_t cbrReverseBodyCache(void *src_ctx, HttpClientContext *cloud_ctx, const c
     send_err = httpSend(ctx->connection, payload, length, HTTP_FLAG_DELAY);
     if (send_err)
     {
+        if (ctx->file != NULL)
+        {
+            fsCloseFile(ctx->file);
+            ctx->file = NULL;
+        }
+        if (ctx->cache_path != NULL)
+        {
+            fsDeleteFile(ctx->cache_path);
+        }
         TRACE_WARNING(">> httpSend failed at total=%" PRIuSIZE ", chunk=%" PRIuSIZE ": %s\r\n", ctx->total_sent, length, error2text(send_err));
         return send_err;
     }
@@ -284,6 +293,7 @@ error_t handleReverseGeneric(HttpConnection *connection, const char_t *uri, cons
 
     if (cachePath)
     {
+        cbr_ctx.cache_path = cachePath;
         cbr_ctx.file = fsOpenFile(cachePath, FS_FILE_MODE_WRITE | FS_FILE_MODE_TRUNC);
         if (cbr_ctx.file)
         {
@@ -320,7 +330,14 @@ error_t handleReverseGeneric(HttpConnection *connection, const char_t *uri, cons
 
     if (error != NO_ERROR)
     {
-        TRACE_ERROR("web_request() failed for reverse proxy\r\n");
+        if (error == ERROR_WRITE_FAILED || error == ERROR_NOT_CONNECTED)
+        {
+            TRACE_WARNING("web_request() aborted for reverse proxy: %s\r\n", error2text(error));
+        }
+        else
+        {
+            TRACE_ERROR("web_request() failed for reverse proxy\r\n");
+        }
         return error;
     }
 
