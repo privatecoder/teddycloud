@@ -27,8 +27,70 @@
 
 #define MAX_REDIRECTS 5
 
+static const char BOXINE_CLOUD_TRUST_CA_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIEtDCCApygAwIBAgIBIDANBgkqhkiG9w0BAQsFADBaMQswCQYDVQQGEwJERTEL\n"
+    "MAkGA1UECAwCTlcxFDASBgNVBAcMC0R1ZXNzZWxkb3JmMRQwEgYDVQQKDAtCb3hp\n"
+    "bmUgR21iSDESMBAGA1UEAwwJQm94aW5lIENBMB4XDTE2MDcwODE3MjMyOFoXDTI2\n"
+    "MDgyNTE3MjMyOFoweTELMAkGA1UEBhMCREUxCzAJBgNVBAgMAk5XMRQwEgYDVQQH\n"
+    "DAtEdWVzc2VsZG9yZjEUMBIGA1UECgwLQm94aW5lIEdtYkgxMTAvBgNVBAMMKEJv\n"
+    "eGluZSBEb21haW4gVmFsaWRhdGlvbiBJbnRlcm1lZGlhdGUgQ0EwggEiMA0GCSqG\n"
+    "SIb3DQEBAQUAA4IBDwAwggEKAoIBAQDPCiqzvMVhBnZ3p/CQVjS3CkwacABgdJ0m\n"
+    "yp8I+9AnAk6kmBYp2yw1g63ubWDlOY06k+wjO0n24BeWMn13YJopdjSI+Kdvpyil\n"
+    "ojkAcwzNheezdt5HkwqqsIiQyEFbbT3BiGkYfoCsgiobBswmseNeMugFGgZE5nqy\n"
+    "znPMQ8eCnkeOncNM/hjlnIYMZbMVSCopN4C/xKuFTKwKnz1Yhh7PgTZgFdlkG9R8\n"
+    "7uFHQg7+uYLfPbxt0Xn+X5Xs5WuCCzQOgRnUkMDXVxIGSCEtECITicvqMIL0tSRa\n"
+    "vq1uOEi0UMn9sUuCVGLadR31wiKcbwcX/gLLZTpkJUnKAb6p1dmdAgMBAAGjZjBk\n"
+    "MB0GA1UdDgQWBBQKvykXFyDlijxlRibodA4WQptl3DAfBgNVHSMEGDAWgBTV1GV8\n"
+    "UZaa2+Q0z4y6BLTQ9qg2xTASBgNVHRMBAf8ECDAGAQH/AgEAMA4GA1UdDwEB/wQE\n"
+    "AwIBhjANBgkqhkiG9w0BAQsFAAOCAgEAE38BCUEYgHCKmWhcwNz9sTnBulTBLVk4\n"
+    "fyh36B1it0fvVmNgSSgy0qlRmy+OSf7zE/0QB9FB8T7HOSivrnoh6Zpywzl5H92j\n"
+    "plwBk1zAVWUjHgholI2SpTGRFZHJsMmWRaASK/QV8RXO99Eg/a4VP5Wp6fwKx2FR\n"
+    "jm+di44EMfcyYsmJm15u2d+0Kb0De8hkTBECEUnP7t/vKz0D1Lug6wKmGbGusJY6\n"
+    "58PdHPLvUoEl6OfcP80LPejOICEvetBBLpBy63SrgrijPj94Tqs7ZR+XMYCuHGSw\n"
+    "Le6sNOKfdjDeiwGTnadfya5FFYqS8DwFqpXKA7BZ2B57AJuBGABanYXR0ntqZDlP\n"
+    "nuUxcCY7y3atIxNpVblC0eQkHtrixOu7aHfO+meZVT0ayXLWenJsmvp9+eyCH8ia\n"
+    "udrzEvJyUovhRA0ybaF6Hq6UusbFbv/fLuL1NXOPg4jeswG/DlH86tG3TEnSIxhj\n"
+    "CeaEsn7YgGzYMsdLOURh15ORPCqo1N3JQJA8PDQ0eBcomlTINKHOZAU1N1kGF3bA\n"
+    "OMaOyDbYFeHZhbH+kWvmKD5L46YqjmdTL/etDKhqOyqEDd67Ia1FEFokGXmVclAa\n"
+    "ENc6KUROzpzzwH+qW6+GLXNgpgxNxKJZ4atoe6OFiajWnOjpgYkcE57OGWvqVHRu\n"
+    "477xbKoQJVw=\n"
+    "-----END CERTIFICATE-----\n"
+    "-----BEGIN CERTIFICATE-----\n"
+    "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\n"
+    "oct94CxqWdEU5K9C9WJ/Fk92Z8VR5lMvDm6T\n"
+    "-----END CERTIFICATE-----\n";
+
 error_t httpClientTlsInitCallbackBase(HttpClientContext *context,
-                                      TlsContext *tlsContext, const char *client_ca, const char *client_crt, const char *client_key)
+                                      TlsContext *tlsContext, const char *trusted_ca, const char *client_crt, const char *client_key)
 {
     TRACE_DEBUG("Initializing TLS...\r\n");
     error_t error;
@@ -45,10 +107,10 @@ error_t httpClientTlsInitCallbackBase(HttpClientContext *context,
     if (error)
         return error;
 
-    if (client_ca != NULL)
+    if (trusted_ca != NULL)
     {
         // Import the list of trusted CA certificates
-        error = tlsSetTrustedCaList(tlsContext, client_ca, strlen(client_ca));
+        error = tlsSetTrustedCaList(tlsContext, trusted_ca, strlen(trusted_ca));
         // Any error to report?
         if (error)
             return error;
@@ -84,21 +146,16 @@ error_t httpClientTlsInitCallbackClientAuthTonies(HttpClientContext *context,
     client_ctx_t *client_ctx = ((cbr_ctx_t *)cbr_ctx->ctx)->client_ctx;
     settings_t *settings = client_ctx->settings;
 
-    const char *client_ca = settings->internal.client.ca;
     const char *client_crt = settings->internal.client.crt;
     const char *client_key = settings->internal.client.key;
+    const char *trusted_ca = BOXINE_CLOUD_TRUST_CA_PEM;
 
-    bool ca_missing = (client_ca == NULL || osStrlen(client_ca) == 0);
     bool crt_missing = (client_crt == NULL || osStrlen(client_crt) == 0);
     bool key_missing = (client_key == NULL || osStrlen(client_key) == 0);
 
-    if (settings->internal.overlayNumber != 0 && (ca_missing || crt_missing || key_missing))
+    if (settings->internal.overlayNumber != 0 && (crt_missing || key_missing))
     {
         TRACE_WARNING("Missing certificates for overlay %s, fallback to global certificates\r\n", settings->internal.overlayUniqueId);
-        if (ca_missing)
-        {
-            TRACE_WARNING(" ca.der (%s) missing\r\n", settings->core.client_cert.file.ca);
-        }
         if (crt_missing)
         {
             TRACE_WARNING(" client.der (%s) missing\r\n", settings->core.client_cert.file.crt);
@@ -109,22 +166,16 @@ error_t httpClientTlsInitCallbackClientAuthTonies(HttpClientContext *context,
         }
 
         settings = get_settings();
-        client_ca = settings->internal.client.ca;
         client_crt = settings->internal.client.crt;
         client_key = settings->internal.client.key;
 
-        ca_missing = (client_ca == NULL || osStrlen(client_ca) == 0);
         crt_missing = (client_crt == NULL || osStrlen(client_crt) == 0);
         key_missing = (client_key == NULL || osStrlen(client_key) == 0);
     }
 
-    if (ca_missing || crt_missing || key_missing)
+    if (crt_missing || key_missing)
     {
         TRACE_ERROR("Failed to get certificates:\r\n");
-        if (ca_missing)
-        {
-            TRACE_ERROR(" ca.der (%s) missing\r\n", settings->core.client_cert.file.ca);
-        }
         if (crt_missing)
         {
             TRACE_ERROR(" client.der (%s) missing\r\n", settings->core.client_cert.file.crt);
@@ -135,7 +186,8 @@ error_t httpClientTlsInitCallbackClientAuthTonies(HttpClientContext *context,
         }
         return ERROR_FAILURE;
     }
-    return httpClientTlsInitCallbackBase(context, tlsContext, client_ca, client_crt, client_key);
+
+    return httpClientTlsInitCallbackBase(context, tlsContext, trusted_ca, client_crt, client_key);
 }
 
 int_t cloud_request_get(const char *server, int port, const char *uri, const char *queryString, const uint8_t *hash, req_cbr_t *cbr)
