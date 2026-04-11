@@ -414,7 +414,16 @@ error_t handleCloudClaim(HttpConnection *connection, const char_t *uri, const ch
             }
             cbr_ctx_t ctx;
             req_cbr_t cbr = getCloudCbr(connection, uri, queryString, V1_CLAIM, &ctx, client_ctx);
-            cloud_request_get(NULL, 0, uri, queryString, token, &cbr);
+            uint32_t statusCode = 0;
+            ret = web_request(NULL, 0, true, uri, queryString, "GET", NULL, 0, token, &cbr, true, false, &statusCode);
+            if (ret == NO_ERROR && statusCode != 200)
+            {
+                TRACE_WARNING(" >> upstream cloud claim rejected: HTTP status=%" PRIu32 "\r\n", statusCode);
+            }
+            else if (ret)
+            {
+                TRACE_WARNING(" >> upstream cloud claim failed: %s\r\n", error2text(ret));
+            }
             served = true;
         }
         else

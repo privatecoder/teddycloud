@@ -677,13 +677,8 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
             if (error)
                 break;
 
-            // Header field found?
-            if (strlen(content_type) == 0)
-            {
-                TRACE_INFO("Content-Type header field not found!\r\n");
-            }
-
             bool binary = true;
+            bool shouldInspectBodyForLogging = printTextData && status >= 200 && status < 300;
             if (!strncmp(content_type, "text", 4))
             {
                 binary = false;
@@ -692,7 +687,12 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
             {
                 binary = false;
             }
-            else
+
+            if (shouldInspectBodyForLogging && strlen(content_type) == 0)
+            {
+                TRACE_INFO("Content-Type header field not found!\r\n");
+            }
+            else if (shouldInspectBodyForLogging && binary)
             {
                 TRACE_INFO("Binary data, not dumping body\r\n");
             }
@@ -727,7 +727,7 @@ static error_t web_request_impl(const char *server, int port, bool https, const 
                 // Check status code
                 if (!error)
                 {
-                    if (printTextData && !binary)
+                    if (shouldInspectBodyForLogging && !binary)
                     {
                         // Properly terminate the string with a NULL character
                         buffer[length] = '\0';

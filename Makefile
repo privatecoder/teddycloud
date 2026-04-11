@@ -607,7 +607,7 @@ submodules:
 	$(QUIET)git submodule init
 	$(QUIET)git submodule update
 
-preinstall: clean build web_copy $(INSTALL_DIR)/ $(PREINSTALL_DIR)/
+preinstall: clean build $(WEB_PREINSTALL_TARGET) $(INSTALL_DIR)/ $(PREINSTALL_DIR)/
 	$(QUIET)$(ECHO) '[ ${GREEN}PRE${NC}  ] Preinstall'
 	$(QUIET)$(CP) $(BIN_DIR)/* $(PREINSTALL_DIR)/
 	$(QUIET)$(CP_R) $(subst /,$(SEP),$(CONTRIB_DIR)/*) $(subst /,$(SEP),$(PREINSTALL_DIR)/)
@@ -616,9 +616,11 @@ preinstall: clean build web_copy $(INSTALL_DIR)/ $(PREINSTALL_DIR)/
 		&& cd -
 
 ifeq ($(OS),Windows_NT)	
+WEB_PREINSTALL_TARGET := web_copy
 web: 
 web_copy: 
 else
+WEB_PREINSTALL_TARGET := web
 web_version:
 
 web_clean: 

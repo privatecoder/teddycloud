@@ -2,9 +2,16 @@ FROM ubuntu:latest AS buildenv
 
 # Default to using ASAN
 ARG NO_SANITIZERS=0
+ARG NODE_MAJOR=22
+ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc protobuf-c-compiler build-essential git zip curl ca-certificates
+    && apt-get install -y --no-install-recommends gcc protobuf-c-compiler build-essential git zip curl ca-certificates gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends nodejs
 
 COPY . /buildenv
 WORKDIR /buildenv
@@ -17,6 +24,7 @@ RUN test -f cJSON/cJSON.h \
 
 RUN curl -f https://raw.githubusercontent.com/privatecoder/tonies-json/release/tonies.json -o /buildenv/contrib/config/tonies.json || true
 RUN curl -f https://raw.githubusercontent.com/privatecoder/tonies-json/release/tonieboxes.json -o /buildenv/contrib/config/tonieboxes.json || true
+RUN make web
 RUN make zip NO_SANITIZERS=${NO_SANITIZERS}
 
 FROM ubuntu:latest
