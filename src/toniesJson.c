@@ -127,10 +127,11 @@ error_t tonies_update()
 
     ctx.file = NULL;
     fsDeleteFile(tonies_json_tmp_path);
+    uint32_t statusCode = 0;
     // TODO: Be sure HTTPS CA is checked!
-    error_t error = web_request(uri_base, 443, true, uri_path, queryString, "GET", NULL, 0, NULL, &cbr, false, false, NULL);
+    error_t error = web_request(uri_base, 443, true, uri_path, queryString, "GET", NULL, 0, NULL, &cbr, false, false, &statusCode);
 
-    if (error == NO_ERROR && fsFileExists(tonies_json_tmp_path))
+    if (error == NO_ERROR && statusCode == 200 && fsFileExists(tonies_json_tmp_path))
     {
         fsDeleteFile(tonies_json_path);
         fsRenameFile(tonies_json_tmp_path, tonies_json_path);
@@ -138,9 +139,14 @@ error_t tonies_update()
         tonies_deinit();
         tonies_init();
     }
+    else if (error != NO_ERROR)
+    {
+        TRACE_ERROR("... failed updating tonies.json, request error=%s\r\n", error2text(error));
+    }
     else
     {
-        TRACE_ERROR("... failed updating tonies.json error=%s\r\n", error2text(error));
+        TRACE_ERROR("... failed updating tonies.json, HTTP status=%" PRIu32 "\r\n", statusCode);
+        error = ERROR_FAILURE;
     }
     return error;
 }
@@ -211,10 +217,11 @@ error_t toniesV2_update()
 
     ctx.file = NULL;
     fsDeleteFile(toniesV2_json_tmp_path);
+    uint32_t statusCode = 0;
     // TODO: Be sure HTTPS CA is checked!
-    error_t error = web_request(uri_base, 443, true, uri_path, queryString, "GET", NULL, 0, NULL, &cbr, false, false, NULL);
+    error_t error = web_request(uri_base, 443, true, uri_path, queryString, "GET", NULL, 0, NULL, &cbr, false, false, &statusCode);
 
-    if (error == NO_ERROR && fsFileExists(toniesV2_json_tmp_path))
+    if (error == NO_ERROR && statusCode == 200 && fsFileExists(toniesV2_json_tmp_path))
     {
         fsDeleteFile(toniesV2_json_path);
         fsRenameFile(toniesV2_json_tmp_path, toniesV2_json_path);
@@ -222,9 +229,14 @@ error_t toniesV2_update()
         tonies_deinit();
         tonies_init();
     }
+    else if (error != NO_ERROR)
+    {
+        TRACE_ERROR("... failed updating toniesV2.json, request error=%s\r\n", error2text(error));
+    }
     else
     {
-        TRACE_ERROR("... failed updating toniesV2.json error=%s\r\n", error2text(error));
+        TRACE_ERROR("... failed updating toniesV2.json, HTTP status=%" PRIu32 "\r\n", statusCode);
+        error = ERROR_FAILURE;
     }
     return error;
 }
@@ -281,7 +293,7 @@ error_t tonieboxes_downloadBody(void *src_ctx, HttpClientContext *cloud_ctx, con
 }
 error_t tonieboxes_update()
 {
-    TRACE_INFO("Updating tonies.json from api.revvox.de...\r\n");
+    TRACE_INFO("Updating tonieboxes.json from api.revvox.de...\r\n");
     cbr_ctx_t ctx;
     client_ctx_t client_ctx = {
         .settings = get_settings(),
@@ -301,10 +313,11 @@ error_t tonieboxes_update()
 
     ctx.file = NULL;
     fsDeleteFile(target_tmp);
+    uint32_t statusCode = 0;
     // TODO: Be sure HTTPS CA is checked!
-    error_t error = web_request(uri_base, 443, true, uri_path, queryString, "GET", NULL, 0, NULL, &cbr, false, false, NULL);
+    error_t error = web_request(uri_base, 443, true, uri_path, queryString, "GET", NULL, 0, NULL, &cbr, false, false, &statusCode);
 
-    if (error == NO_ERROR && fsFileExists(target_tmp))
+    if (error == NO_ERROR && statusCode == 200 && fsFileExists(target_tmp))
     {
         fsDeleteFile(target);
         fsRenameFile(target_tmp, target);
@@ -312,9 +325,14 @@ error_t tonieboxes_update()
         tonies_deinit();
         tonies_init();
     }
+    else if (error != NO_ERROR)
+    {
+        TRACE_ERROR("... failed updating tonieboxes.json, request error=%s\r\n", error2text(error));
+    }
     else
     {
-        TRACE_ERROR("... failed updating tonieboxes.json error=%s\r\n", error2text(error));
+        TRACE_ERROR("... failed updating tonieboxes.json, HTTP status=%" PRIu32 "\r\n", statusCode);
+        error = ERROR_FAILURE;
     }
     osFreeMem(target);
     osFreeMem(target_tmp);
