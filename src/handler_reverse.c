@@ -293,6 +293,8 @@ error_t handleReverseGeneric(HttpConnection *connection, const char_t *uri, cons
 
     if (cachePath)
     {
+        // cache_path aliases the local cachePath buffer and is only valid while
+        // this synchronous web_request() call is active.
         cbr_ctx.cache_path = cachePath;
         cbr_ctx.file = fsOpenFile(cachePath, FS_FILE_MODE_WRITE | FS_FILE_MODE_TRUNC);
         if (cbr_ctx.file)

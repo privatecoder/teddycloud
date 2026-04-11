@@ -30,7 +30,7 @@ static error_t settings_load_ovl(bool overlay);
 static setting_item_t *settings_get_by_name_id(const char *item, uint8_t settingsId);
 static char *settings_sanitize_box_id(const char *input_id);
 
-static bool x509_string_equals(const X509String *value, const char *literal)
+static inline bool x509_string_equals(const X509String *value, const char *literal)
 {
     size_t literal_len = osStrlen(literal);
     return value != NULL && value->value != NULL && value->length == literal_len && osMemcmp(value->value, literal, literal_len) == 0;
