@@ -1393,6 +1393,13 @@ void mqtt_init()
         {
             ha_add(&ha_server_instance, &entity);
         }
+        else
+        {
+            osFreeMem(name);
+            osFreeMem((void *)entity.name);
+            osFreeMem((void *)entity.stat_t);
+            osFreeMem((void *)entity.cmd_t);
+        }
     };
 
     if (!osCreateEvent(&mqtt_shutdown_event))
