@@ -22,10 +22,40 @@ RUN test -f cJSON/cJSON.h \
     && test -f teddycloud_web/package.json \
     || (echo "Missing required submodule content. Run: git submodule update --init --recursive" >&2 && exit 1)
 
+# Capture version info from the clean checkout BEFORE build steps dirty the tree.
+# make web regenerates web_version.json, make zip runs protoc-c (different version),
+# and the curl below writes into contrib/config/ — all of which modify tracked files.
+RUN git diff --quiet 2>/dev/null && echo 0 > /tmp/git_dirty || echo 1 > /tmp/git_dirty \
+    && git log -1 --format=%ai 2>/dev/null > /tmp/git_datetime \
+    && git rev-parse --short HEAD 2>/dev/null > /tmp/git_short_sha \
+    && git rev-parse HEAD 2>/dev/null > /tmp/git_sha \
+    && (git describe --tags --exact-match 2>/dev/null || git describe --tags --always 2>/dev/null) > /tmp/git_tag \
+    && cd teddycloud_web \
+    && git diff --quiet 2>/dev/null && echo 0 > /tmp/web_dirty || echo 1 > /tmp/web_dirty \
+    && git log -1 --format=%ai 2>/dev/null > /tmp/web_datetime \
+    && git rev-parse --short HEAD 2>/dev/null > /tmp/web_short_sha \
+    && git rev-parse HEAD 2>/dev/null > /tmp/web_sha \
+    && (git describe --tags --exact-match 2>/dev/null || git describe --tags --always 2>/dev/null) > /tmp/web_tag
+
 RUN curl -f https://raw.githubusercontent.com/privatecoder/tonies-json/release/tonies.json -o /buildenv/contrib/config/tonies.json || true
 RUN curl -f https://raw.githubusercontent.com/privatecoder/tonies-json/release/tonieboxes.json -o /buildenv/contrib/config/tonieboxes.json || true
-RUN make web
-RUN make zip NO_SANITIZERS=${NO_SANITIZERS}
+RUN make web \
+    WEB_GIT_DIRTY="$(cat /tmp/web_dirty)" \
+    WEB_GIT_BUILD_TIME="$(cat /tmp/web_datetime)" \
+    WEB_GIT_SHORT_SHA="$(cat /tmp/web_short_sha)" \
+    WEB_GIT_SHA="$(cat /tmp/web_sha)" \
+    WEB_GIT_TAG="$(cat /tmp/web_tag)"
+RUN make zip NO_SANITIZERS=${NO_SANITIZERS} \
+    GIT_DIRTY="$(cat /tmp/git_dirty)" \
+    GIT_BUILD_TIME="$(cat /tmp/git_datetime)" \
+    GIT_SHORT_SHA="$(cat /tmp/git_short_sha)" \
+    GIT_SHA="$(cat /tmp/git_sha)" \
+    GIT_TAG="$(cat /tmp/git_tag)" \
+    WEB_GIT_DIRTY="$(cat /tmp/web_dirty)" \
+    WEB_GIT_BUILD_TIME="$(cat /tmp/web_datetime)" \
+    WEB_GIT_SHORT_SHA="$(cat /tmp/web_short_sha)" \
+    WEB_GIT_SHA="$(cat /tmp/web_sha)" \
+    WEB_GIT_TAG="$(cat /tmp/web_tag)"
 
 FROM ubuntu:latest
 ARG TEDDYCLOUD_VERSION=unknown
