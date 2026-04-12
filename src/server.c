@@ -1017,7 +1017,10 @@ void server_init(bool test)
         }
     }
     mqtt_server_deinit();
-    mqtt_deinit();
+    if (!mqtt_deinit())
+    {
+        TRACE_WARNING("MQTT shutdown did not complete cleanly before exit\r\n");
+    }
     tonies_deinit();
     mutex_manager_deinit();
 

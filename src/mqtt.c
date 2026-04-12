@@ -43,6 +43,8 @@ bool_t mqttConnected = FALSE;
 error_t error;
 MqttClientContext mqtt_context;
 bool mqtt_fail = false;
+static OsEvent mqtt_shutdown_event;
+static bool mqtt_shutdown_event_ready = false;
 
 #define MQTT_TOPIC_STRING_LENGTH 128
 
@@ -647,8 +649,18 @@ void mqtt_thread(void *arg)
         ha_loop(&ha_server_instance);
     }
 
+    if (mqttConnected)
+    {
+        mqttClientClose(&mqtt_context);
+        mqttConnected = FALSE;
+    }
+
     mqtt_free_settings(mqtt_context.mqtt_ctx);
     ha_cleanup(&ha_server_instance);
+    if (mqtt_shutdown_event_ready)
+    {
+        osSetEvent(&mqtt_shutdown_event);
+    }
 }
 
 void mqtt_publish_string(const char *name, const char *value)
@@ -1318,8 +1330,6 @@ void mqtt_init()
     taskParams.priority = 0;
     taskParams.stackSize = 1024;
 
-    osCreateTask("MQTT", &mqtt_thread, NULL, &taskParams);
-
     t_ha_entity entity;
 
     ha_setup(&ha_server_instance);
@@ -1385,10 +1395,38 @@ void mqtt_init()
             ha_add(&ha_server_instance, &entity);
         }
     };
+
+    if (!osCreateEvent(&mqtt_shutdown_event))
+    {
+        TRACE_ERROR("Failed to create MQTT shutdown event\r\n");
+        ha_cleanup(&ha_server_instance);
+        return;
+    }
+
+    mqtt_shutdown_event_ready = true;
+    if (osCreateTask("MQTT", &mqtt_thread, NULL, &taskParams) == (OsTaskId) OS_INVALID_TASK_ID)
+    {
+        TRACE_ERROR("Failed to create MQTT task\r\n");
+        mqtt_shutdown_event_ready = false;
+        osDeleteEvent(&mqtt_shutdown_event);
+        ha_cleanup(&ha_server_instance);
+    }
 }
 
-void mqtt_deinit()
+bool mqtt_deinit()
 {
-    mqttClientClose(&mqtt_context);
-    ha_cleanup(&ha_server_instance);
+    if (!mqtt_shutdown_event_ready)
+    {
+        return true;
+    }
+
+    if (!osWaitForEvent(&mqtt_shutdown_event, 5000))
+    {
+        TRACE_ERROR("Timed out waiting for MQTT task shutdown\r\n");
+        return false;
+    }
+
+    mqtt_shutdown_event_ready = false;
+    osDeleteEvent(&mqtt_shutdown_event);
+    return true;
 }

@@ -2488,6 +2488,7 @@ static char *getJsonString(cJSON *jsonElement, char *name)
 error_t handleApiTonieboxJson(HttpConnection *connection, const char_t *uri, const char_t *queryString, client_ctx_t *client_ctx)
 {
     char *path = custom_asprintf("%s%c%s", settings_get_string("internal.configdirfull"), PATH_SEPARATOR, TONIEBOX_JSON_FILE);
+    error_t ret = NO_ERROR;
 
     size_t fileSize = 0;
     fsGetFileSize(path, (uint32_t *)(&fileSize));
@@ -2497,7 +2498,8 @@ error_t handleApiTonieboxJson(HttpConnection *connection, const char_t *uri, con
     if (fsFile == NULL)
     {
         httpWriteResponseString(connection, "Failed to open file", false);
-        return ERROR_FAILURE;
+        ret = ERROR_FAILURE;
+        goto cleanup_path;
     }
     size_t sizeRead;
     char *data = osAllocMem(fileSize);
@@ -2506,7 +2508,8 @@ error_t handleApiTonieboxJson(HttpConnection *connection, const char_t *uri, con
         TRACE_ERROR("Failed to allocate %" PRIuSIZE " bytes for tonieboxes JSON\r\n", fileSize);
         fsCloseFile(fsFile);
         httpWriteResponseString(connection, "Out of memory", false);
-        return ERROR_OUT_OF_MEMORY;
+        ret = ERROR_OUT_OF_MEMORY;
+        goto cleanup_path;
     }
     size_t pos = 0;
 
@@ -2536,7 +2539,8 @@ error_t handleApiTonieboxJson(HttpConnection *connection, const char_t *uri, con
         {
             cJSON_Delete(outputJson);
             cJSON_Delete(inputJson);
-            return ERROR_FAILURE;
+            ret = ERROR_FAILURE;
+            goto cleanup_path;
         }
 
         /* Add "id" and "name" to the object */
@@ -2632,7 +2636,9 @@ error_t handleApiTonieboxJson(HttpConnection *connection, const char_t *uri, con
     cJSON_Delete(inputJson);
     cJSON_Delete(outputJson);
 
-    return NO_ERROR;
+cleanup_path:
+    osFreeMem(path);
+    return ret;
 }
 
 error_t handleApiTonieboxCustomJson(HttpConnection *connection, const char_t *uri, const char_t *queryString, client_ctx_t *client_ctx)
@@ -3287,8 +3293,17 @@ error_t handleApiCacheStats(HttpConnection *connection, const char_t *uri, const
 
 error_t handleApiPluginsGet(HttpConnection *connection, const char_t *uri, const char_t *queryString, client_ctx_t *client_ctx)
 {
+    error_t ret = ERROR_FAILURE;
+    cJSON *response = cJSON_CreateObject();
     cJSON *pluginNames = cJSON_CreateArray();
-    cJSON_AddItemToObject(cJSON_CreateObject(), "plugins", pluginNames);
+    if (response == NULL || pluginNames == NULL)
+    {
+        cJSON_Delete(response);
+        cJSON_Delete(pluginNames);
+        return ERROR_OUT_OF_MEMORY;
+    }
+
+    cJSON_AddItemToObject(response, "plugins", pluginNames);
     FsDir *dir = fsOpenDir(client_ctx->settings->internal.pluginsdirfull);
     if (dir)
     {
@@ -3311,10 +3326,18 @@ error_t handleApiPluginsGet(HttpConnection *connection, const char_t *uri, const
             }
         }
 
-        char *pluginJson = cJSON_Print(pluginNames);
-        httpPrepareHeader(connection, "application/json; charset=utf-8", osStrlen(pluginJson));
-        cJSON_Delete(pluginNames);
-        return httpWriteResponseString(connection, pluginJson, true);
+        char *pluginJson = cJSON_Print(response);
+        if (pluginJson != NULL)
+        {
+            httpPrepareHeader(connection, "application/json; charset=utf-8", osStrlen(pluginJson));
+            ret = httpWriteResponseString(connection, pluginJson, true);
+        }
+        else
+        {
+            ret = ERROR_OUT_OF_MEMORY;
+        }
     }
-    return ERROR_FAILURE;
+
+    cJSON_Delete(response);
+    return ret;
 }
