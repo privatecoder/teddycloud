@@ -3294,16 +3294,12 @@ error_t handleApiCacheStats(HttpConnection *connection, const char_t *uri, const
 error_t handleApiPluginsGet(HttpConnection *connection, const char_t *uri, const char_t *queryString, client_ctx_t *client_ctx)
 {
     error_t ret = ERROR_FAILURE;
-    cJSON *response = cJSON_CreateObject();
     cJSON *pluginNames = cJSON_CreateArray();
-    if (response == NULL || pluginNames == NULL)
+    if (pluginNames == NULL)
     {
-        cJSON_Delete(response);
         cJSON_Delete(pluginNames);
         return ERROR_OUT_OF_MEMORY;
     }
-
-    cJSON_AddItemToObject(response, "plugins", pluginNames);
     FsDir *dir = fsOpenDir(client_ctx->settings->internal.pluginsdirfull);
     if (dir)
     {
@@ -3326,7 +3322,7 @@ error_t handleApiPluginsGet(HttpConnection *connection, const char_t *uri, const
             }
         }
 
-        char *pluginJson = cJSON_Print(response);
+        char *pluginJson = cJSON_Print(pluginNames);
         if (pluginJson != NULL)
         {
             httpPrepareHeader(connection, "application/json; charset=utf-8", osStrlen(pluginJson));
@@ -3338,6 +3334,6 @@ error_t handleApiPluginsGet(HttpConnection *connection, const char_t *uri, const
         }
     }
 
-    cJSON_Delete(response);
+    cJSON_Delete(pluginNames);
     return ret;
 }
