@@ -1017,6 +1017,7 @@ void server_init(bool test)
         }
     }
     mqtt_server_deinit();
+    mqtt_deinit();
     tonies_deinit();
     mutex_manager_deinit();
 

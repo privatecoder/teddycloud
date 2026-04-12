@@ -648,6 +648,7 @@ void mqtt_thread(void *arg)
     }
 
     mqtt_free_settings(mqtt_context.mqtt_ctx);
+    ha_cleanup(&ha_server_instance);
 }
 
 void mqtt_publish_string(const char *name, const char *value)
@@ -1339,9 +1340,13 @@ void mqtt_init()
 
         char *name = mqtt_settingname_clean(s->option_name);
         entity.id = name;
+        entity.owns_id = true;
         entity.name = custom_asprintf("%s - %s", s->option_name, s->description);
+        entity.owns_name = true;
         entity.stat_t = mqtt_topic_str("%s/%s/status", name);
+        entity.owns_stat_t = true;
         entity.cmd_t = mqtt_topic_str("%s/%s/command", name);
+        entity.owns_cmd_t = true;
         entity.transmit = &mqtt_settings_tx;
         entity.transmit_ctx = s;
         entity.received = &mqtt_settings_rx;
@@ -1380,4 +1385,10 @@ void mqtt_init()
             ha_add(&ha_server_instance, &entity);
         }
     };
+}
+
+void mqtt_deinit()
+{
+    mqttClientClose(&mqtt_context);
+    ha_cleanup(&ha_server_instance);
 }

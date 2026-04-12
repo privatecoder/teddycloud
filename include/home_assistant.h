@@ -41,6 +41,11 @@ struct s_ha_entity
 {
     t_ha_device_type type;
 
+    bool owns_name;
+    bool owns_id;
+    bool owns_cmd_t;
+    bool owns_stat_t;
+
     const char *name;
     const char *id;
 
@@ -115,6 +120,7 @@ struct s_ha_info
 };
 
 void ha_setup(t_ha_info *ha_info);
+void ha_cleanup(t_ha_info *ha_info);
 void ha_connected(t_ha_info *ha_info);
 bool ha_loop(t_ha_info *ha_info);
 void ha_transmit_all(t_ha_info *ha_info);

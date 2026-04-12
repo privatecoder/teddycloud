@@ -318,6 +318,40 @@ void ha_setup(t_ha_info *ha_info)
     ha_info->initialized = true;
 }
 
+void ha_cleanup(t_ha_info *ha_info)
+{
+    if (!ha_info)
+    {
+        return;
+    }
+
+    for (int pos = 0; pos < ha_info->entitiy_count; pos++)
+    {
+        if (ha_info->entities[pos].owns_name && ha_info->entities[pos].name)
+        {
+            osFreeMem((void *)ha_info->entities[pos].name);
+            ha_info->entities[pos].name = NULL;
+        }
+        if (ha_info->entities[pos].owns_id && ha_info->entities[pos].id)
+        {
+            osFreeMem((void *)ha_info->entities[pos].id);
+            ha_info->entities[pos].id = NULL;
+        }
+        if (ha_info->entities[pos].owns_cmd_t && ha_info->entities[pos].cmd_t)
+        {
+            osFreeMem((void *)ha_info->entities[pos].cmd_t);
+            ha_info->entities[pos].cmd_t = NULL;
+        }
+        if (ha_info->entities[pos].owns_stat_t && ha_info->entities[pos].stat_t)
+        {
+            osFreeMem((void *)ha_info->entities[pos].stat_t);
+            ha_info->entities[pos].stat_t = NULL;
+        }
+    }
+
+    ha_info->entitiy_count = 0;
+}
+
 void ha_connected(t_ha_info *ha_info)
 {
     for (int pos = 0; pos < ha_info->entitiy_count; pos++)
