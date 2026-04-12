@@ -656,7 +656,6 @@ void mqtt_thread(void *arg)
     }
 
     mqtt_free_settings(mqtt_context.mqtt_ctx);
-    ha_cleanup(&ha_server_instance);
     if (mqtt_shutdown_event_ready)
     {
         osSetEvent(&mqtt_shutdown_event);
@@ -1426,6 +1425,7 @@ bool mqtt_deinit()
         return false;
     }
 
+    ha_cleanup(&ha_server_instance);
     mqtt_shutdown_event_ready = false;
     osDeleteEvent(&mqtt_shutdown_event);
     return true;
